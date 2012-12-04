@@ -33,7 +33,7 @@
             traceFilePath="/tmp/radargun_aux/ispnTrace.dat"/>
       <StartStopNodes/>
       <StartStopNodesStats/>
-      <!-- <KillSlave />
+      <!-- <KillSlave />                                                                                                                                                                                                                
       <Kill                                                                                                                                                                                                                        
         repeat="30"                                                                                                                                                                                                                
         sleepTime="10000" />  -->

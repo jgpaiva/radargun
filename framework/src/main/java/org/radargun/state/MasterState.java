@@ -1,5 +1,8 @@
 package org.radargun.state;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.radargun.DistStage;
@@ -10,9 +13,6 @@ import org.radargun.config.FixedSizeBenchmarkConfig;
 import org.radargun.config.MasterConfig;
 import org.radargun.jmx.JmxRegistration;
 import org.radargun.utils.Utils;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * State residing on the server, passed to each stage before execution.
@@ -29,8 +29,13 @@ public class MasterState extends StateBase {
    private long startTime = System.currentTimeMillis();
    private DistStage currentDistStage;
    private final JmxRegistration jmxRegistration = JmxRegistration.getInstance();   
+   private final ArrayList<String> hostnames = new ArrayList<String>();
 
-   public MasterState(MasterConfig config) {
+   public ArrayList<String> getHostnames() {
+	return hostnames;
+}
+
+public MasterState(MasterConfig config) {
       this.config = config;
       benchmarks = new ArrayList<FixedSizeBenchmarkConfig>(config.getBenchmarks());
       if (benchmarks.isEmpty())

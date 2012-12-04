@@ -58,6 +58,8 @@ public class WebSessionWarmupStage extends AbstractDistStage {
       ack.setPayload(duration);
 
       slaveState.put("key_gen_factory", putGetWarmupStressor.getFactory());
+      
+      log.info("WebSessionWarmup done. Node now has " + wrapper.getCacheSize()+ " keys");
       return ack;
    }
 

@@ -26,3 +26,4 @@ core/src/main/resources/schema
 # Compiled python files
 *.pyc
 .DS_Store
+*~

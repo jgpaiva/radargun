@@ -1,16 +1,20 @@
 package org.radargun;
 
 
+import java.io.BufferedWriter;
+import java.io.ObjectInputStream;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
+import javax.transaction.RollbackException;
+
+import org.infinispan.remoting.transport.Address;
 import org.radargun.keygen2.RadargunKey;
 import org.radargun.reporting.DataPlacementStats;
 import org.radargun.utils.BucketsKeysTreeSet;
 
-import javax.transaction.RollbackException;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.util.Collection;
-import java.util.Map;
+import pt.inescid.MovementInfo;
 
 /**
  * CacheWrappers wrap caching products tp provide RadarGun with a standard way of
@@ -157,4 +161,12 @@ public interface CacheWrapper
                                   DataPlacementStats stats) throws Exception;
 
    void convertTotString(ObjectInputStream objectsToMove, BufferedWriter writer) throws Exception;
+   
+   List<MovementInfo> getKeysMovedPerRound();
+   
+   void switchHashFunction(int minSize, int maxSize);
+
+   public boolean getNodeToFail();
+
+   Integer[] getMyGroupSize();	
 }

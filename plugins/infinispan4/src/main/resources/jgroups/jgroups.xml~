@@ -11,7 +11,7 @@
          mcast_recv_buf_size="25M"
          mcast_send_buf_size="640K"
          mcast_addr="${jgroups.udp.mcast_addr:232.10.10.10}"
-         mcast_port="${jgroups.udp.mcast_port:45598}"
+         mcast_port="${jgroups.udp.mcast_port:45588}"
          loopback="false"
          discard_incompatible_packets="true"
          max_bundle_size="64K"

@@ -48,7 +48,7 @@
                chunkSize="100"
                timeout="240000"/>
          <hash
-               numOwners="3"
+               numOwners="2"
                numVirtualNodes="1"
                />
       </clustering>

@@ -13,7 +13,6 @@ import java.net.URLClassLoader;
  * @author Mircea.Markus@jboss.com
  */
 public class StartClusterStage extends AbstractDistStage {
-
    private String productName;
    private boolean useSmartClassLoading = true;
    private boolean performClusterSizeValidation = true;
@@ -41,11 +40,13 @@ public class StartClusterStage extends AbstractDistStage {
          return ack;
       }
       staggerStartup(slaveIndex, getActiveSlaveCount());
+      slaveState.put("config", config);
       log.info("Ack master's StartCluster stage. Local address is: " + slaveState.getLocalAddress() + ". This slave's index is: " + getSlaveIndex());
       CacheWrapper wrapper = null;
       try {
          String plugin = Utils.getCacheWrapperFqnClass(productName);
          wrapper = (CacheWrapper) createInstance(plugin);
+         slaveState.put("cl", Thread.currentThread().getContextClassLoader());
          wrapper.setUp(config, false, slaveIndex);
          slaveState.setCacheWrapper(wrapper);
          if (performClusterSizeValidation) {

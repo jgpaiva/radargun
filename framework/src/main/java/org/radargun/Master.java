@@ -161,6 +161,9 @@ public class Master {
                log.trace("Added new slave connection from: " + socketChannel.socket().getInetAddress());
          }
       }
+      for(SocketChannel it : slaves) {
+    	  state.getHostnames().add(it.socket().getInetAddress().getHostAddress());
+      }
       log.info("Connection established from " + slaves.size() + " slaves.");
    }
 
