@@ -10,7 +10,7 @@ SSH_USER=$USER
 WORKING_DIR=`pwd`
 VERBOSE=false
 REMOTE_CMD='ssh -q -o "StrictHostKeyChecking false"'
-MASTER=`hostname`
+MASTER=`hostname -i`
 SLAVES=""
 SLAVE_COUNT=0
 TAILF=false
@@ -99,6 +99,7 @@ PID_OF_MASTER_PROCESS=$RADARGUN_MASTER_PID
 sleep 5s
 ####### then start the rest of the nodes
 CMD="source ~/.bash_profile ; cd $WORKING_DIR"
+CMD="$CMD ; cd ~/wpm/; ./run_cons_prod.sh start; cd -"
 CMD="$CMD ; bin/slave.sh -m ${MASTER} -g ${MASTER}"
 
 for slave in $SLAVES; do

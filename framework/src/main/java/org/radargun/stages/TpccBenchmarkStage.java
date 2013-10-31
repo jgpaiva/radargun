@@ -35,7 +35,7 @@ public class TpccBenchmarkStage extends AbstractDistStage {
 
    private static final String SIZE_INFO = "SIZE_INFO";
    private static final String SCRIPT_LAUNCH = "_script_launch_";
-   private static final String SCRIPT_PATH = "/home/pruivo/beforeBenchmark.sh";
+   private static final String SCRIPT_PATH = "/home/jgpaiva/beforeBenchmark.sh";
 
    /**
     * the number of threads that will work on this slave
