@@ -102,6 +102,11 @@ public class TpccStressor extends AbstractCacheWrapperStressor {
     */
    private int localityProbability = -1;
 
+   /**
+    * sets the offset on accessing warehouses 
+    */
+   private int warehouseOffset = 0;
+
    private CacheWrapper cacheWrapper;
    private long startTime;
    private long endTime;
@@ -554,7 +559,7 @@ public class TpccStressor extends AbstractCacheWrapperStressor {
          super("Stressor-" + threadIndex);
          this.threadIndex = threadIndex;
          this.arrivalRate = arrivalRate;
-         this.terminal = new TpccTerminal(paymentWeight, orderStatusWeight, nodeIndex, localWarehouseID, localityProbability);
+         this.terminal = new TpccTerminal(paymentWeight, orderStatusWeight, nodeIndex, localWarehouseID, localityProbability,warehouseOffset);
       }
 
       @Override
@@ -804,7 +809,7 @@ public class TpccStressor extends AbstractCacheWrapperStressor {
          super("Producer-" + id);
          setDaemon(true);
          this.rate = rate;
-         this.terminal = new TpccTerminal(paymentWeight, orderStatusWeight, nodeIndex, 0, localityProbability);
+         this.terminal = new TpccTerminal(paymentWeight, orderStatusWeight, nodeIndex, 0, localityProbability,warehouseOffset);
       }
 
       public void run() {
@@ -911,6 +916,8 @@ public class TpccStressor extends AbstractCacheWrapperStressor {
             ", numOfThreads=" + numOfThreads +
             ", numberOfItemsInterval=" + numberOfItemsInterval +
             ", statsSamplingInterval=" + statsSamplingInterval +
+            ", localityProbability=" + localityProbability +
+            ", warehouseOffset=" + warehouseOffset +
             '}';
    }
 
@@ -1076,7 +1083,13 @@ public class TpccStressor extends AbstractCacheWrapperStressor {
    }
 
    public void setLocalityProbability(int localityProbability) {
-      this.localityProbability = localityProbability;
+	   this.localityProbability = localityProbability;
+	   log.info(this + "setting localityProbability to:" + localityProbability);
+   }
+   
+   public void setWarehouseOffset(int warehouseOffset) {
+	   this.warehouseOffset = warehouseOffset;
+	   log.info(this + "setting warehouseOffset to:" + warehouseOffset);
    }
 
    public synchronized final void stopBenchmark() {
