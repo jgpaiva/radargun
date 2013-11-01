@@ -83,6 +83,11 @@ public class TpccBenchmarkStage extends AbstractDistStage {
     * sets the probability of the workload access to the same warehouse 
     */
    private int localityProbability = -1;
+   
+   /**
+    * sets the offset on accessing warehouses 
+    */
+   private int warehouseOffset = 0;
 
    private transient CacheWrapper cacheWrapper;
 
@@ -137,6 +142,7 @@ public class TpccBenchmarkStage extends AbstractDistStage {
       tpccStressor.setNumberOfItemsInterval(numberOfItemsInterval);
       tpccStressor.setStatsSamplingInterval(statsSamplingInterval);
       tpccStressor.setLocalityProbability(localityProbability);
+      tpccStressor.setWarehouseOffset(warehouseOffset);
 
       try {
          Map<String, String> results = tpccStressor.stress(cacheWrapper);
@@ -221,6 +227,12 @@ public class TpccBenchmarkStage extends AbstractDistStage {
 
    public void setLocalityProbability(int localityProbability) {
       this.localityProbability = localityProbability;
+      log.info(this + "setting localityProbability to:" + localityProbability);
+   }
+   
+   public void setWarehouseOffset(int warehouseOffset) {
+	   this.warehouseOffset = warehouseOffset;
+	   log.info(this + "setting warehouseOffset to:" + warehouseOffset);
    }
 
    @Override

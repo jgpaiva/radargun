@@ -31,15 +31,20 @@ public class TpccTerminal {
    private final TpccTools tpccTools;
 
    private final int localityProbability;
+   
+   private final int warehouseOffset;
 
 
-   public TpccTerminal(double paymentWeight, double orderStatusWeight, int indexNode, int localWarehouseID,int localityProbability) {
+   public TpccTerminal(double paymentWeight, double orderStatusWeight, int indexNode, int localWarehouseID,int localityProbability, int warehouseOffset) {
       this.paymentWeight = paymentWeight;
       this.orderStatusWeight = orderStatusWeight;
       this.indexNode = indexNode;
       this.localWarehouseID = localWarehouseID;
       this.localityProbability = localityProbability;
+      this.warehouseOffset = warehouseOffset;
       tpccTools = TpccTools.newInstance();
+      
+      log.info("created " + this.toString());
    }
 
    public synchronized final TpccTransaction createTransaction(int type) {
@@ -58,16 +63,19 @@ public class TpccTerminal {
    }
 
    public synchronized final long chooseWarehouse() {
+	   long myWarehouse = localWarehouseID + warehouseOffset > TpccTools.NB_WAREHOUSES?
+			   	   localWarehouseID + warehouseOffset - TpccTools.NB_WAREHOUSES:
+				   localWarehouseID + warehouseOffset;
       if (localityProbability < 0) {
          return tpccTools.randomNumber(1, TpccTools.NB_WAREHOUSES);
       } else if (tpccTools.randomNumber(0, 100) < localityProbability) {
-         return localWarehouseID;
+         return myWarehouse;
       } else {
          long warehouseId;
          do {
             warehouseId = tpccTools.randomNumber(1, TpccTools.NB_WAREHOUSES);
          }
-         while (warehouseId == localWarehouseID && TpccTools.NB_WAREHOUSES > 1);
+         while (warehouseId == myWarehouse && TpccTools.NB_WAREHOUSES > 1);
          return warehouseId;
       }
    }
@@ -126,6 +134,8 @@ public class TpccTerminal {
             "paymentWeight=" + paymentWeight +
             ", orderStatusWeight=" + orderStatusWeight +
             ", localWarehouseID=" + (localWarehouseID == -1 ? "random" : localWarehouseID) +
+            ", localityProbability=" + localityProbability + 
+            ", warehouseOffset=" + warehouseOffset + 
             '}';
    }
 }
