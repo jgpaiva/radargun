@@ -1,23 +1,17 @@
 <config
       xmlns="urn:org:jgroups"
       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-      xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/JGroups-3.0.xsd">
-   <UDP
-         tos="8"
-         ucast_recv_buf_size="20M"
-         ucast_send_buf_size="640K"
-         ip_mcast="true"
-         ip_ttl="${jgroups.udp.ip_ttl:8}"
-         mcast_recv_buf_size="25M"
-         mcast_send_buf_size="640K"
-         mcast_addr="${jgroups.udp.mcast_addr:232.10.10.10}"
-         mcast_port="${jgroups.udp.mcast_port:45588}"
+      xsi:schemaLocation="urn:org:jgroups http://www.jgroups.org/schema/JGroups-3.1.xsd">
+   <TCP
+         bind_port="7800"
+         recv_buf_size="${tcp.recv_buf_size:20M}"
+         send_buf_size="${tcp.send_buf_size:640K}"
+         use_send_queues="true"
+         sock_conn_timeout="300"
          loopback="false"
          discard_incompatible_packets="true"
-         max_bundle_size="64K"
-         max_bundle_timeout="2"
-         enable_bundling="true"
-         enable_unicast_bundling="true"
+         enable_bundling="false"
+         enable_unicast_bundling="false"
          enable_diagnostics="true"
          thread_naming_pattern="cl"
          thread_pool.enabled="true"
@@ -35,12 +29,14 @@
          oob_thread_pool.queue_max_size="10000"
          oob_thread_pool.rejection_policy="discard"
          />
-   <PING
+   <MPING
+         mcast_addr="${jgroups.udp.mcast_addr:224.0.0.5}"
+         mcast_port="${jgroups.udp.mcast_port:46655}"
+         ip_ttl="${jgroups.udp.ip_ttl:8}"
          num_initial_members="5"
          break_on_coord_rsp="true"
-         return_entire_cache="true"
          stagger_timeout="3000"
-         timeout="5000"
+         timeout="15000"
          />
    <MERGE2
          max_interval="30000"
@@ -48,16 +44,16 @@
          />
    <FD_SOCK/>
    <BARRIER/>
-   <pbcast.NAKACK
-         exponential_backoff="500"
-         use_mcast_xmit="true"
-         xmit_stagger_timeout="5000"
+   <pbcast.NAKACK2
+         use_mcast_xmit="false"
          discard_delivered_msgs="true"
          />
-   <UNICAST
-         max_retransmit_time="0"
-         conn_expiry_timeout="0"
+   <UNICAST2
+         max_stable_msgs="100"
          xmit_interval="1000"
+         conn_expiry_timeout="0"
+         max_bytes="10M"
+         stable_interval="10000"
          />
    <pbcast.STABLE
          stability_delay="2000"
@@ -71,20 +67,5 @@
          max_bundling_time="500"
          view_bundling="true"
          />
-   <UFC
-         max_credits="4M"
-         min_threshold="0.4"
-         />
-   <MFC
-         max_credits="4M"
-         min_threshold="0.4"
-         />
-   <FRAG2
-         frag_size="60K"
-         />
-   <!--COMPRESS
-         compression_level="9"
-         min_size="10K"
-         /-->
    <pbcast.STATE_TRANSFER/>
 </config>
