@@ -129,6 +129,7 @@ public class TpccBenchmarkStage extends AbstractDistStage {
       tpccStressor.setAccessSameWarehouse(accessSameWarehouse);
       tpccStressor.setNumberOfItemsInterval(numberOfItemsInterval);
       tpccStressor.setStatsSamplingInterval(statsSamplingInterval);
+      tpccStressor.setLocalityProbability(localityProbability);
 
       try {
          Map<String, String> results = tpccStressor.stress(cacheWrapper);
