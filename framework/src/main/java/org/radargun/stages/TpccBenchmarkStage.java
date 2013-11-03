@@ -1,5 +1,12 @@
 package org.radargun.stages;
 
+import static java.lang.Double.parseDouble;
+import static org.radargun.utils.Utils.numberFormat;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.radargun.CacheWrapper;
 import org.radargun.DistStageAck;
 import org.radargun.jmx.annotations.MBean;
@@ -7,13 +14,6 @@ import org.radargun.jmx.annotations.ManagedAttribute;
 import org.radargun.jmx.annotations.ManagedOperation;
 import org.radargun.state.MasterState;
 import org.radargun.stressors.TpccStressor;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static java.lang.Double.parseDouble;
-import static org.radargun.utils.Utils.numberFormat;
 
 /**
  * Simulate the activities found in complex OLTP application environments.
@@ -227,12 +227,10 @@ public class TpccBenchmarkStage extends AbstractDistStage {
 
    public void setLocalityProbability(int localityProbability) {
       this.localityProbability = localityProbability;
-      log.info(this + "setting localityProbability to:" + localityProbability);
    }
    
    public void setWarehouseOffset(int warehouseOffset) {
 	   this.warehouseOffset = warehouseOffset;
-	   log.info(this + "setting warehouseOffset to:" + warehouseOffset);
    }
 
    @Override

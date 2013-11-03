@@ -1,19 +1,5 @@
 package org.radargun.stressors;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.radargun.CacheWrapper;
-import org.radargun.producer.GroupProducerRateFactory;
-import org.radargun.producer.ProducerRate;
-import org.radargun.tpcc.ElementNotFoundException;
-import org.radargun.tpcc.TpccTerminal;
-import org.radargun.tpcc.TpccTools;
-import org.radargun.tpcc.transaction.NewOrderTransaction;
-import org.radargun.tpcc.transaction.PaymentTransaction;
-import org.radargun.tpcc.transaction.TpccTransaction;
-import org.radargun.utils.StatSampler;
-import org.radargun.utils.Utils;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -29,6 +15,20 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.radargun.CacheWrapper;
+import org.radargun.producer.GroupProducerRateFactory;
+import org.radargun.producer.ProducerRate;
+import org.radargun.tpcc.ElementNotFoundException;
+import org.radargun.tpcc.TpccTerminal;
+import org.radargun.tpcc.TpccTools;
+import org.radargun.tpcc.transaction.NewOrderTransaction;
+import org.radargun.tpcc.transaction.PaymentTransaction;
+import org.radargun.tpcc.transaction.TpccTransaction;
+import org.radargun.utils.StatSampler;
+import org.radargun.utils.Utils;
 
 
 /**
@@ -1084,12 +1084,10 @@ public class TpccStressor extends AbstractCacheWrapperStressor {
 
    public void setLocalityProbability(int localityProbability) {
 	   this.localityProbability = localityProbability;
-	   log.info(this + "setting localityProbability to:" + localityProbability);
    }
    
    public void setWarehouseOffset(int warehouseOffset) {
 	   this.warehouseOffset = warehouseOffset;
-	   log.info(this + "setting warehouseOffset to:" + warehouseOffset);
    }
 
    public synchronized final void stopBenchmark() {
