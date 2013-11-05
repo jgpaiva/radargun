@@ -97,11 +97,18 @@ public class TpccBenchmarkStage extends AbstractDistStage {
       }
    }
 
+   static boolean hasStartedBeforeBenchmark = false;
    private Boolean startScript() {
       try {
-         Runtime.getRuntime().exec(SCRIPT_PATH);
-         log.info("Script " + SCRIPT_PATH + " started successfully");
-         return Boolean.TRUE;
+    	  if(!hasStartedBeforeBenchmark) {
+	         Runtime.getRuntime().exec(SCRIPT_PATH);
+	         log.info("Script " + SCRIPT_PATH + " started successfully");
+	         hasStartedBeforeBenchmark = true;
+	         return Boolean.TRUE;
+    	  }else {
+    		 log.info("Did not launch " + SCRIPT_PATH + ": was already started");
+    		 return Boolean.FALSE;
+    	  }
       } catch (Exception e) {
          log.warn("Error starting script " + SCRIPT_PATH + ". " + e.getMessage());
          return Boolean.FALSE;
