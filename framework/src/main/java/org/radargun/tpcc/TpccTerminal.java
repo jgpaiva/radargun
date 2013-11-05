@@ -63,9 +63,9 @@ public class TpccTerminal {
    }
 
    public synchronized final long chooseWarehouse() {
-	   long myWarehouse = localWarehouseID + warehouseOffset > TpccTools.NB_WAREHOUSES?
-			   	   localWarehouseID + warehouseOffset - TpccTools.NB_WAREHOUSES:
-				   localWarehouseID + warehouseOffset;
+      long firstWh = 1;
+      long lastWh = TpccTools.NB_WAREHOUSES;
+      long myWarehouse = ((localWarehouseID - firstWh + warehouseOffset) % (lastWh - firstWh + 1)) + firstWh;
       if (localityProbability < 0) {
          return tpccTools.randomNumber(1, TpccTools.NB_WAREHOUSES);
       } else if (tpccTools.randomNumber(0, 100) < localityProbability) {
