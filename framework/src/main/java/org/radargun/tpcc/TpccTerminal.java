@@ -63,21 +63,34 @@ public class TpccTerminal {
    }
 
    public synchronized final long chooseWarehouse() {
-      long firstWh = 1;
-      long lastWh = TpccTools.NB_WAREHOUSES;
-      long myWarehouse = ((localWarehouseID - firstWh + warehouseOffset) % (lastWh - firstWh + 1)) + firstWh;
-      if (localityProbability < 0) {
-         return tpccTools.randomNumber(1, TpccTools.NB_WAREHOUSES);
-      } else if (tpccTools.randomNumber(0, 100) < localityProbability) {
-         return myWarehouse;
-      } else {
-         long warehouseId;
-         do {
-            warehouseId = tpccTools.randomNumber(1, TpccTools.NB_WAREHOUSES);
-         }
-         while (warehouseId == myWarehouse && TpccTools.NB_WAREHOUSES > 1);
-         return warehouseId;
-      }
+	   long myWarehouse = 0;
+	   long firstWh = 1;
+	   long lastWh = TpccTools.NB_WAREHOUSES;
+	   if(warehouseOffset >= 0) {
+		   myWarehouse = ((localWarehouseID - firstWh + warehouseOffset) % (lastWh - firstWh + 1)) + firstWh;   
+	   } else {
+		   long mid = firstWh + (lastWh - firstWh)/2; //1 + (40-1)/2 = 1 + 19.5 = 20   
+		   if(localWarehouseID> mid) {
+			   firstWh = mid+1;
+			   myWarehouse = ((localWarehouseID - firstWh - warehouseOffset) % (lastWh - firstWh + 1)) + firstWh;
+		   }else {
+			   myWarehouse = localWarehouseID;
+		   }
+	   }
+
+
+	   if (localityProbability < 0) {
+		   return tpccTools.randomNumber(1, TpccTools.NB_WAREHOUSES);
+	   } else if (tpccTools.randomNumber(0, 100) < localityProbability) {
+		   return myWarehouse;
+	   } else {
+		   long warehouseId;
+		   do {
+			   warehouseId = tpccTools.randomNumber(1, TpccTools.NB_WAREHOUSES);
+		   }
+		   while (warehouseId == myWarehouse && TpccTools.NB_WAREHOUSES > 1);
+		   return warehouseId;
+	   }
    }
 
    public synchronized final TpccTransaction choiceTransaction(boolean isPassiveReplication, boolean isTheMaster) {
