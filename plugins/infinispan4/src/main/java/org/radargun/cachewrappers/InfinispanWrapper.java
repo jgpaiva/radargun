@@ -1,35 +1,8 @@
 package org.radargun.cachewrappers;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.infinispan.Cache;
-import org.infinispan.config.Configuration;
-import org.infinispan.context.Flag;
-import org.infinispan.dataplacement.OwnersInfo;
-import org.infinispan.dataplacement.c50.C50MLObjectLookup;
-import org.infinispan.dataplacement.c50.lookup.BloomFilter;
-import org.infinispan.dataplacement.c50.lookup.BloomFilter2;
-import org.infinispan.dataplacement.c50.tree.DecisionTree;
-import org.infinispan.dataplacement.lookup.ObjectLookup;
-import org.infinispan.dataplacement.lookup.ObjectLookupFactory;
-import org.infinispan.dataplacement.stats.IncrementableLong;
-import org.infinispan.distribution.DistributionManager;
-import org.infinispan.factories.ComponentRegistry;
-import org.infinispan.manager.DefaultCacheManager;
-import org.infinispan.remoting.rpc.RpcManager;
-import org.infinispan.remoting.transport.Address;
-import org.infinispan.remoting.transport.Transport;
-import org.radargun.CacheWrapper;
-import org.radargun.cachewrappers.parser.StatisticComponent;
-import org.radargun.cachewrappers.parser.StatsParser;
-import org.radargun.keygen2.RadargunKey;
-import org.radargun.reporting.DataPlacementStats;
-import org.radargun.utils.BucketsKeysTreeSet;
-import org.radargun.utils.Utils;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.radargun.utils.Utils.mBeanAttributes2String;
 
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-import javax.transaction.TransactionManager;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
 import java.io.FileWriter;
@@ -48,8 +21,35 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import static java.util.concurrent.TimeUnit.MINUTES;
-import static org.radargun.utils.Utils.mBeanAttributes2String;
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+import javax.transaction.TransactionManager;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.infinispan.Cache;
+import org.infinispan.config.Configuration;
+import org.infinispan.context.Flag;
+import org.infinispan.dataplacement.OwnersInfo;
+import org.infinispan.dataplacement.c50.C50MLObjectLookup;
+import org.infinispan.dataplacement.c50.lookup.BloomFilter;
+import org.infinispan.dataplacement.c50.tree.DecisionTree;
+import org.infinispan.dataplacement.lookup.ObjectReplicationLookup;
+import org.infinispan.dataplacement.lookup.ObjectReplicationLookupFactory;
+import org.infinispan.dataplacement.stats.IncrementableLong;
+import org.infinispan.distribution.DistributionManager;
+import org.infinispan.factories.ComponentRegistry;
+import org.infinispan.manager.DefaultCacheManager;
+import org.infinispan.remoting.rpc.RpcManager;
+import org.infinispan.remoting.transport.Address;
+import org.infinispan.remoting.transport.Transport;
+import org.radargun.CacheWrapper;
+import org.radargun.cachewrappers.parser.StatisticComponent;
+import org.radargun.cachewrappers.parser.StatsParser;
+import org.radargun.keygen2.RadargunKey;
+import org.radargun.reporting.DataPlacementStats;
+import org.radargun.utils.BucketsKeysTreeSet;
+import org.radargun.utils.Utils;
 
 public class InfinispanWrapper implements CacheWrapper {
    private static final String GET_ATTRIBUTE_ERROR = "Exception while obtaining the attribute [%s] from [%s]";
@@ -270,14 +270,14 @@ public class InfinispanWrapper implements CacheWrapper {
    @Override
    public void collectDataPlacementStats(ObjectInputStream objectsToMove, Collection<RadargunKey> keys,
                                          DataPlacementStats stats) throws Exception {
-      Map<Object, OwnersInfo> keyNewOwners = (Map<Object, OwnersInfo>) objectsToMove.readObject();
-      ObjectLookupFactory factory = cache.getCacheConfiguration().dataPlacement().objectLookupFactory();
+      Map<Object, Integer> keyNewOwners = (Map<Object, Integer>) objectsToMove.readObject();
+      ObjectReplicationLookupFactory factory = cache.getCacheConfiguration().dataPlacement().objectReplicationLookupFactory();
       int numberOfOwners = cache.getCacheConfiguration().clustering().hash().numOwners();
 
       stats.setNumberOfKeysMoved(keyNewOwners.size());
 
       long ts1 = System.nanoTime();
-      ObjectLookup objectLookup = factory.createObjectLookup(keyNewOwners, numberOfOwners);
+      ObjectReplicationLookup objectLookup = factory.createObjectReplicationLookup(keyNewOwners);
       long ts2 = System.nanoTime();
 
       stats.setCreationTime(ts2 - ts1);
@@ -291,19 +291,17 @@ public class InfinispanWrapper implements CacheWrapper {
       }
 
       for (Object key : keys) {
-         List<Integer> owners = objectLookup.queryWithProfiling(key, queryTimes);
-         if (owners == null) {
+         Integer replDegree = objectLookup.queryWithProfiling(key, queryTimes);
+         if (replDegree == null) {
             continue;
          }
-         OwnersInfo info = keyNewOwners.get(key);
-         if (info == null) {
+         Integer infoDegree = keyNewOwners.get(key);
+         if (infoDegree == null) {
             wrongMove++;
          } else {
-            TreeSet<Integer> expectedOwners = new TreeSet<Integer>(info.getNewOwnersIndexes());
-            TreeSet<Integer> ownerReturned = new TreeSet<Integer>(owners);
-            if (!ownerReturned.containsAll(expectedOwners)) {
-               wrongOwner++;
-            }
+        	 if(replDegree != infoDegree){
+        		 wrongOwner++;
+        	 }
          }
       }
 
