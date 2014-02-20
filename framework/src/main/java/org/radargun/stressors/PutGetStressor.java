@@ -385,7 +385,7 @@ public class PutGetStressor implements CacheWrapperStressor {
          startTime = System.nanoTime();
          if(coordinatorParticipation || !cacheWrapper.isCoordinator()) {
 
-        	 DeferredExecutor consumerThread = new DeferredExecutor();
+        	 DeferredExecutor consumerThread = new DeferredExecutor(0);
         	 consumerThread.start();
         	 while(running.get()){
         		 createOperation();
@@ -443,6 +443,13 @@ public class PutGetStressor implements CacheWrapperStressor {
       }
       
       public class DeferredExecutor extends Thread{
+    	  private int id;
+
+		public DeferredExecutor(int id) {
+    		  super("DeferredExecutor-" + id);
+    		  this.id = id;
+    	  }
+    	  
     	  public void run(){
     		  log.info("Starting one DeferredExecutor thread");
     		  while(running.get()){
