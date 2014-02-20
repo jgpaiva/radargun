@@ -349,7 +349,7 @@ public class KeyGeneratorFactory {
          int nodeIdx = random.nextInt(workload.numberOfNodes);
          int threadIdx = random.nextInt(workload.numberOfThreads);
          int keyIdx = random.nextInt(maxKeyIdx(workload, nodeIdx, threadIdx));
-         return createKey(nodeIdx, threadIdx, keyIdx);
+         return createKey(0, 0, 0);
       }
 
       private Object localityProbabilityKey(Workload workload) {
