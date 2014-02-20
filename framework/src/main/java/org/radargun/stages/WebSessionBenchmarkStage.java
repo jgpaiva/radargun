@@ -47,6 +47,9 @@ public class WebSessionBenchmarkStage extends AbstractDistStage {
 
    //simulation time (in seconds)
    private long perThreadSimulTime = -1;
+   
+   //wait time for producer thread (in millis)
+   private long waitTime = -1;
 
    //allows execution without contention
    private boolean noContention = false;
@@ -105,6 +108,7 @@ public class WebSessionBenchmarkStage extends AbstractDistStage {
       stressor.setNumberOfThreads(numOfThreads);
       stressor.setLocalityProbability(localityProbability);
       stressor.setStdDev(stdDev);
+      stressor.setWaitTime(waitTime);
 
       try {
          Map<String, String> results = stressor.stress(cacheWrapper);
@@ -163,11 +167,16 @@ public class WebSessionBenchmarkStage extends AbstractDistStage {
             ", noContention=" + noContention +
             ", localityProbability=" + localityProbability +
             ", stdDev=" + stdDev +
+            ", waitTime=" + waitTime +
             ", " + super.toString();
    }
 
    public void setPerThreadSimulTime(long perThreadSimulTime){
       this.perThreadSimulTime = perThreadSimulTime;
+   }
+   
+   public void setWaitTime(long waitTime){
+	   this.waitTime = waitTime;
    }
 
    public void setNumberOfKeys(int numberOfKeys) {

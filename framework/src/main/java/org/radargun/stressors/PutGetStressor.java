@@ -1,5 +1,20 @@
 package org.radargun.stressors;
 
+import static org.radargun.utils.Utils.convertNanosToMillis;
+
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.radargun.CacheWrapper;
@@ -11,21 +26,9 @@ import org.radargun.jmx.annotations.ManagedOperation;
 import org.radargun.keygen2.KeyGenerator;
 import org.radargun.keygen2.KeyGeneratorFactory;
 import org.radargun.utils.TransactionWorkload;
+import org.radargun.utils.TransactionWorkload.Operation;
+import org.radargun.utils.TransactionWorkload.OperationIterator;
 import org.radargun.utils.Utils;
-
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.radargun.utils.TransactionWorkload.Operation;
-import static org.radargun.utils.TransactionWorkload.OperationIterator;
-import static org.radargun.utils.Utils.convertNanosToMillis;
 
 /**
  * On multiple threads executes put and get operations against the CacheWrapper, and returns the result as an Map.
@@ -57,12 +60,14 @@ public class PutGetStressor implements CacheWrapperStressor {
 
    private final TransactionWorkload transactionWorkload;
 
-
    //indicates that the coordinator execute or not txs -- PEDRO
    private boolean coordinatorParticipation = true;
 
    //simulation time (default: 30 seconds)
    private long simulationTime = 30L;
+
+   //time between operation execution (in millis, default: 1second)
+   private long waitTime = 1000;
 
    public PutGetStressor(KeyGeneratorFactory factory) {
       this.factory = factory == null ? new KeyGeneratorFactory() : factory;
@@ -130,8 +135,11 @@ public class PutGetStressor implements CacheWrapperStressor {
       long readOnlyTxRollbackDuration = 0;
       long writeTxRollbackDuration = 0;
 
+      long queuesize = 0;
+      
       for (Stresser stresser : stresserList) {
          totalDuration += stresser.delta;
+         queuesize += stresser.queuesize;
 
          commitFailedReadOnlyTxDuration += stresser.commitFailedReadOnlyTxDuration;
          numberOfCommitFailedReadOnlyTx += stresser.numberOfCommitFailedReadOnlyTx;
@@ -250,6 +258,7 @@ public class PutGetStressor implements CacheWrapperStressor {
       results.put("WRT_TX_COUNT", str(numberOfWriteTx));
       results.put("WRT_EXEC_ERR_TX_COUNT", str(numberOfExecFailedWriteTx));
       results.put("WRT_COMMIT_ERR_TX_COUNT", str(numberOfCommitFailedWriteTx));
+      results.put("QUEUE_SIZE", str(queuesize));
 
       int totalFailedTx = numberOfExecFailedReadOnlyTx + numberOfCommitFailedReadOnlyTx + numberOfExecFailedWriteTx +
             numberOfCommitFailedWriteTx;
@@ -306,14 +315,20 @@ public class PutGetStressor implements CacheWrapperStressor {
     log.info("Keys stressed saved");*/
    }
 
+   public enum StressorOperation{GO,STOP}
    private class Stresser extends Thread {
 
       private int threadIndex;
       private KeyGenerator keyGenerator;
       private final Random random;
+      
+      private final BlockingQueue<StressorOperation> queue = new LinkedBlockingQueue<StressorOperation>();
 
       private long delta = 0;
       private long startTime = 0;
+      
+      //queue size at end of benchmark
+      private int queuesize;
 
       //execution successful and commit successful
       private long readOnlyTxCommitSuccessDuration;
@@ -360,98 +375,30 @@ public class PutGetStressor implements CacheWrapperStressor {
 
       @Override
       public void run() {
-         int i = 0;
-         boolean executionSuccessful;
-         boolean commitSuccessful;
-         long startTx;
-         long startCommit = 0;
-         Object lastReadValue;
-
          try {
             startPoint.await();
             log.info("Starting thread: " + getName());
          } catch (InterruptedException e) {
             log.warn(e);
          }
-
+         
          startTime = System.nanoTime();
          if(coordinatorParticipation || !cacheWrapper.isCoordinator()) {
 
-            while(running.get()){
+        	 DeferredExecutor consumerThread = new DeferredExecutor();
+        	 consumerThread.start();
+        	 while(running.get()){
+        		 createOperation();
+        	 }
+        	 queuesize = queue.size();
+        	 queue.clear();
+        	 queue.add(StressorOperation.STOP);
+        	 try {
+				consumerThread.join();
+			} catch (InterruptedException e) {
+				log.warn("could not join with consumerThread?",e);
+			}
 
-               OperationIterator operationIterator = transactionWorkload.chooseTransaction(cacheWrapper, random);
-
-               startTx = System.nanoTime();
-
-               cacheWrapper.startTransaction();
-               log.trace("*** [" + getName() + "] new transaction: " + i + "***");
-
-               try{
-                  lastReadValue = executeTransaction(operationIterator);
-                  executionSuccessful = true;
-               } catch (TransactionExecutionFailedException e) {
-                  lastReadValue = e.getLastValueRead();
-                  logException(e, "Execution");
-                  executionSuccessful = false;
-               }
-
-               try{
-                  startCommit = System.nanoTime();
-                  cacheWrapper.endTransaction(executionSuccessful);
-                  commitSuccessful = true;
-               }
-               catch(Throwable e){
-                  logException(e, "Commit");
-                  commitSuccessful = false;
-               }
-
-               long endCommit = System.nanoTime();
-
-               log.trace("*** [" + getName() + "] end transaction: " + i++ + "***");
-
-               boolean readOnlyTransaction = operationIterator.isReadOnly();
-               long commitDuration = endCommit - startCommit;
-               long execDuration = endCommit - startTx;
-
-               //update stats
-               if(executionSuccessful) {
-                  if (commitSuccessful) {
-                     if (readOnlyTransaction) {
-                        readOnlyTxCommitSuccessDuration += commitDuration;
-                        readOnlyTxDuration += execDuration;
-                        numberOfReadOnlyTx++;
-                     } else {
-                        writeTxCommitSuccessDuration += commitDuration;
-                        writeTxDuration += execDuration;
-                        numberOfWriteTx++;
-                     }
-                  } else {
-                     if (readOnlyTransaction) {
-                        readOnlyTxCommitFailDuration += commitDuration;
-                        commitFailedReadOnlyTxDuration += execDuration;
-                        numberOfCommitFailedReadOnlyTx++;
-                     } else {
-                        writeTxCommitFailDuration += commitDuration;
-                        commitFailedWriteTxDuration += execDuration;
-                        numberOfCommitFailedWriteTx++;
-                     }
-                  }
-               } else {
-                  //it is a rollback                  
-                  if (readOnlyTransaction) {
-                     readOnlyTxTollbackDuration += commitDuration;
-                     execFailedReadOnlyTxDuration += execDuration;
-                     numberOfExecFailedReadOnlyTx++;
-                  } else {
-                     writeTxTollbackDuration += commitDuration;
-                     execFailedWriteTxDuration += execDuration;
-                     numberOfExecFailedWriteTx++;
-                  }
-               }
-
-               this.delta = System.nanoTime() - startTime;
-               logProgress(i, lastReadValue);
-            }
          } else {
             long sleepTime = simulationTime / 1000000; //nano to millis
             log.info("I am a coordinator and I wouldn't execute transactions. sleep for " + sleepTime + "(ms)");
@@ -462,6 +409,17 @@ public class PutGetStressor implements CacheWrapperStressor {
             }
          }
       }
+      
+      private void createOperation(){
+    	  try {
+			Thread.sleep(waitTime);
+			queue.add(StressorOperation.GO);
+			if(log.isTraceEnabled())
+			log.trace(String.format("Added one operation to queue. Current queue size: {}",queue.size()));
+		} catch (InterruptedException e) {
+			log.warn("create operation was interrupted",e);
+		}
+      }
 
       private void logException(Throwable e, String where) {
          String msg = "[" + getName() + "] exception caught in " + where + ": " + e.getLocalizedMessage();
@@ -470,39 +428,6 @@ public class PutGetStressor implements CacheWrapperStressor {
          } else {
             log.warn(msg);
          }
-      }
-
-      private Object executeTransaction(OperationIterator operationIterator)
-            throws TransactionExecutionFailedException {
-         Object lastReadValue = null;
-
-         while(operationIterator.hasNext()){
-            Object key = keyGenerator.getRandomKey();
-
-            if (operationIterator.isNextOperationARead()) {
-               try {
-                  lastReadValue = cacheWrapper.get(keyGenerator.getBucket(), key);
-               } catch (Throwable e) {
-                  TransactionExecutionFailedException tefe = new TransactionExecutionFailedException(
-                        "Error while reading " + key, e);
-                  tefe.setLastValueRead(lastReadValue);
-                  throw tefe;
-               }
-            } else {
-               Object payload = keyGenerator.getRandomValue();
-
-               try {
-                  cacheWrapper.put(keyGenerator.getBucket(), key, payload);
-               } catch (Throwable e) {
-                  TransactionExecutionFailedException tefe = new TransactionExecutionFailedException(
-                        "Error while writing " + key, e);
-                  tefe.setLastValueRead(lastReadValue);
-                  throw tefe;
-               }
-
-            }
-         }
-         return lastReadValue;
       }
 
       private void logProgress(int i, Object result) {
@@ -515,6 +440,141 @@ public class PutGetStressor implements CacheWrapperStressor {
                            Utils.getDurationString((long) convertNanosToMillis(elapsedTime)) +
                            ". Last value read is " + result);
          }
+      }
+      
+      public class DeferredExecutor extends Thread{
+    	  public void run(){
+    		  log.info("Starting one DeferredExecutor thread");
+    		  while(running.get()){
+    			  try {
+    				  StressorOperation val = queue.poll(10, TimeUnit.SECONDS);
+    				  if(val == null){
+    					  continue;
+    				  }else if(val == StressorOperation.STOP){
+    					  break;
+    				  }else{
+    					  runOperation();
+    				  }
+    			  } catch (InterruptedException e) {
+    			  }
+    		  }
+    		  log.info("Stopping one DeferredExecutor thread");
+    	  }
+
+    	  public void runOperation(){
+    		  int i = 0;
+    		  boolean executionSuccessful;
+    		  boolean commitSuccessful;
+    		  long startTx;
+    		  long startCommit = 0;
+    		  Object lastReadValue;
+
+    		  OperationIterator operationIterator = transactionWorkload.chooseTransaction(cacheWrapper, random);
+
+    		  startTx = System.nanoTime();
+
+    		  cacheWrapper.startTransaction();
+    		  log.trace("*** [" + getName() + "] new transaction: " + i + "***");
+
+    		  try{
+    			  lastReadValue = executeTransaction(operationIterator);
+    			  executionSuccessful = true;
+    		  } catch (TransactionExecutionFailedException e) {
+    			  lastReadValue = e.getLastValueRead();
+    			  logException(e, "Execution");
+    			  executionSuccessful = false;
+    		  }
+
+    		  try{
+    			  startCommit = System.nanoTime();
+    			  cacheWrapper.endTransaction(executionSuccessful);
+    			  commitSuccessful = true;
+    		  }
+    		  catch(Throwable e){
+    			  logException(e, "Commit");
+    			  commitSuccessful = false;
+    		  }
+
+    		  long endCommit = System.nanoTime();
+
+    		  log.trace("*** [" + getName() + "] end transaction: " + i++ + "***");
+
+    		  boolean readOnlyTransaction = operationIterator.isReadOnly();
+    		  long commitDuration = endCommit - startCommit;
+    		  long execDuration = endCommit - startTx;
+
+    		  //update stats
+    		  if(executionSuccessful) {
+    			  if (commitSuccessful) {
+    				  if (readOnlyTransaction) {
+    					  readOnlyTxCommitSuccessDuration += commitDuration;
+    					  readOnlyTxDuration += execDuration;
+    					  numberOfReadOnlyTx++;
+    				  } else {
+    					  writeTxCommitSuccessDuration += commitDuration;
+    					  writeTxDuration += execDuration;
+    					  numberOfWriteTx++;
+    				  }
+    			  } else {
+    				  if (readOnlyTransaction) {
+    					  readOnlyTxCommitFailDuration += commitDuration;
+    					  commitFailedReadOnlyTxDuration += execDuration;
+    					  numberOfCommitFailedReadOnlyTx++;
+    				  } else {
+    					  writeTxCommitFailDuration += commitDuration;
+    					  commitFailedWriteTxDuration += execDuration;
+    					  numberOfCommitFailedWriteTx++;
+    				  }
+    			  }
+    		  } else {
+    			  //it is a rollback                  
+    			  if (readOnlyTransaction) {
+    				  readOnlyTxTollbackDuration += commitDuration;
+    				  execFailedReadOnlyTxDuration += execDuration;
+    				  numberOfExecFailedReadOnlyTx++;
+    			  } else {
+    				  writeTxTollbackDuration += commitDuration;
+    				  execFailedWriteTxDuration += execDuration;
+    				  numberOfExecFailedWriteTx++;
+    			  }
+    		  }
+
+    		  delta = System.nanoTime() - startTime;
+    		  logProgress(i, lastReadValue);
+    	  }
+
+    	  private Object executeTransaction(OperationIterator operationIterator)
+    			  throws TransactionExecutionFailedException {
+    		  Object lastReadValue = null;
+
+    		  while(operationIterator.hasNext()){
+    			  Object key = keyGenerator.getRandomKey();
+
+    			  if (operationIterator.isNextOperationARead()) {
+    				  try {
+    					  lastReadValue = cacheWrapper.get(keyGenerator.getBucket(), key);
+    				  } catch (Throwable e) {
+    					  TransactionExecutionFailedException tefe = new TransactionExecutionFailedException(
+    							  "Error while reading " + key, e);
+    					  tefe.setLastValueRead(lastReadValue);
+    					  throw tefe;
+    				  }
+    			  } else {
+    				  Object payload = keyGenerator.getRandomValue();
+
+    				  try {
+    					  cacheWrapper.put(keyGenerator.getBucket(), key, payload);
+    				  } catch (Throwable e) {
+    					  TransactionExecutionFailedException tefe = new TransactionExecutionFailedException(
+    							  "Error while writing " + key, e);
+    					  tefe.setLastValueRead(lastReadValue);
+    					  throw tefe;
+    				  }
+
+    			  }
+    		  }
+    		  return lastReadValue;
+    	  }
       }
    }
 
@@ -652,6 +712,16 @@ public class PutGetStressor implements CacheWrapperStressor {
    @ManagedAttribute
    public int getWriteTxPercentage() {
       return transactionWorkload.getWriteTxPercentage();
+   }
+   
+   @ManagedOperation
+   public void setWaitTime(long waitTime) {
+	   this.waitTime = waitTime;
+   }
+
+   @ManagedAttribute
+   public long getWaitTime() {
+      return this.waitTime;
    }
 
    @ManagedOperation

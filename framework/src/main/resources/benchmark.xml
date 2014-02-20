@@ -31,6 +31,8 @@
             noContention="false"
             writeTransactionPercentage="50"
             coordinatorParticipation="true"
+            numOfThreads="1"
+            waitTime="1000"
             />
       <CacheSize
             statName="CACHE_SIZE" />
