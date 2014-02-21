@@ -53,6 +53,7 @@ public class PutGetStressor implements CacheWrapperStressor {
    private final KeyGeneratorFactory factory;
 
    private final Timer stopBenchmarkTimer = new Timer("stop-benchmark-timer");
+   private final Timer monitorQueueTimer = new Timer("monitor-queue-timer");
 
    private final AtomicBoolean running = new AtomicBoolean(true);
 
@@ -316,6 +317,12 @@ public class PutGetStressor implements CacheWrapperStressor {
             finishBenchmark();
          }
       }, simulationTime * 1000);
+      monitorQueueTimer.schedule(new TimerTask() {
+         @Override
+         public void run() {
+            monitorQueue();
+         }
+      }, 10 * 1000);
       for (Stresser stresser : stresserList) {
          stresser.join();
          log.info("stresser[" + stresser.getName() + "] finished");
@@ -599,6 +606,10 @@ public class PutGetStressor implements CacheWrapperStressor {
 
    private void finishBenchmark() {
       running.set(false);
+   }
+   
+   private void monitorQueue(){
+      cacheWrapper.setQueueSize(queue.size());
    }
 
    @ManagedOperation

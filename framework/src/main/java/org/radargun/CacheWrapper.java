@@ -157,4 +157,10 @@ public interface CacheWrapper
                                   DataPlacementStats stats) throws Exception;
 
    void convertTotString(ObjectInputStream objectsToMove, BufferedWriter writer) throws Exception;
+   
+   /**
+    * set que queue size on infinispan, to be collected by wpm
+    * @param queueSize
+    */
+   void setQueueSize(int queueSize);
 }

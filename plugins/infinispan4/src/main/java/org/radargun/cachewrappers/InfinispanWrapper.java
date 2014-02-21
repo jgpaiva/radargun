@@ -389,6 +389,12 @@ public class InfinispanWrapper implements CacheWrapper {
       return false;
    }
 
+   @Override
+   public void setQueueSize(int queueSize){
+      DistributionManager manager = cache.getAdvancedCache().getDistributionManager();
+      manager.setRgunQueueSize(queueSize);
+   }
+   
    //================================================= JMX STATS ====================================================
 
    private void tryResetStats(ObjectName component, MBeanServer mBeanServer) {
