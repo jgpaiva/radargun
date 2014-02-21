@@ -57,6 +57,7 @@ public class PutGetStressor implements CacheWrapperStressor {
    private final AtomicBoolean running = new AtomicBoolean(true);
 
    private final List<Stresser> stresserList = new LinkedList<Stresser>();
+   private final BlockingQueue<StressorOperation> queue = new LinkedBlockingQueue<StressorOperation>();
 
    private final TransactionWorkload transactionWorkload;
 
@@ -68,6 +69,9 @@ public class PutGetStressor implements CacheWrapperStressor {
 
    //time between operation execution (in millis, default: 1second)
    private long waitTime = 1000;
+
+   //number of operations per second (default: 100)
+   private long opsPerSecond = 100;
 
    public PutGetStressor(KeyGeneratorFactory factory) {
       this.factory = factory == null ? new KeyGeneratorFactory() : factory;
@@ -277,11 +281,23 @@ public class PutGetStressor implements CacheWrapperStressor {
       }
       return txCount / ((txDuration / numOfThreads) / 1000.0);
    }
+   
+   private int calculateThreads(long opsPerSecond){
+      if(opsPerSecond < 100){
+         this.waitTime = 1000/opsPerSecond;
+         return 1;
+      }else{
+         this.waitTime = 10;
+         long perThreadRate = 1000/waitTime;
+         int threads = (int) (opsPerSecond/perThreadRate);
+         return threads;
+      }
+   }
 
    private void executeOperations() throws Exception {
       startPoint = new CountDownLatch(1);
 
-      for (int threadIndex = 0; threadIndex < factory.getNumberOfThreads(); threadIndex++) {
+      for (int threadIndex = 0; threadIndex < calculateThreads(this.opsPerSecond); threadIndex++) {
          Stresser stresser = new Stresser(threadIndex);
          stresserList.add(stresser);
 
@@ -305,14 +321,6 @@ public class PutGetStressor implements CacheWrapperStressor {
          log.info("stresser[" + stresser.getName() + "] finished");
       }
       log.info("All stressers have finished their execution");
-
-
-      /*BucketsKeysTreeSet bucketsKeysTreeSet = new BucketsKeysTreeSet();
-    for(Stresser s : stresserList) {
-       bucketsKeysTreeSet.addKeySet(s.keyGenerator.getBucket(), s.keyGenerator.getAllKeys());
-    }
-    cacheWrapper.saveKeysStressed(bucketsKeysTreeSet);
-    log.info("Keys stressed saved");*/
    }
 
    public enum StressorOperation{GO,STOP}
@@ -321,8 +329,6 @@ public class PutGetStressor implements CacheWrapperStressor {
       private int threadIndex;
       private KeyGenerator keyGenerator;
       private final Random random;
-      
-      private final BlockingQueue<StressorOperation> queue = new LinkedBlockingQueue<StressorOperation>();
 
       private long delta = 0;
       private long startTime = 0;
@@ -411,14 +417,16 @@ public class PutGetStressor implements CacheWrapperStressor {
       }
       
       private void createOperation(){
-    	  try {
-			Thread.sleep(waitTime);
-			queue.add(StressorOperation.GO);
-			if(log.isTraceEnabled())
-			log.trace(String.format("Added one operation to queue. Current queue size: {}",queue.size()));
-		} catch (InterruptedException e) {
-			log.warn("create operation was interrupted",e);
-		}
+         try {
+            Thread.sleep(waitTime);
+            queue.add(StressorOperation.GO);
+            if (log.isTraceEnabled())
+               log.trace(String.format(
+                     "Added one operation to queue. Current queue size: {}",
+                     queue.size()));
+         } catch (InterruptedException e) {
+            log.warn("create operation was interrupted", e);
+         }
       }
 
       private void logException(Throwable e, String where) {
@@ -445,11 +453,11 @@ public class PutGetStressor implements CacheWrapperStressor {
       public class DeferredExecutor extends Thread{
     	  private int id;
 
-		public DeferredExecutor(int id) {
+    	  public DeferredExecutor(int id) {
     		  super("DeferredExecutor-" + id);
     		  this.id = id;
     	  }
-    	  
+
     	  public void run(){
     		  log.info("Starting one DeferredExecutor thread");
     		  while(running.get()){
@@ -722,13 +730,13 @@ public class PutGetStressor implements CacheWrapperStressor {
    }
    
    @ManagedOperation
-   public void setWaitTime(long waitTime) {
-	   this.waitTime = waitTime;
+   public void setOpsPerSecond(long opsPerSecond) {
+	   this.opsPerSecond = opsPerSecond;
    }
 
    @ManagedAttribute
-   public long getWaitTime() {
-      return this.waitTime;
+   public long getOpsPerSecond() {
+      return this.opsPerSecond;
    }
 
    @ManagedOperation
@@ -751,4 +759,3 @@ public class PutGetStressor implements CacheWrapperStressor {
       factory.setStdDev(stdDev);
    }
 }
-
