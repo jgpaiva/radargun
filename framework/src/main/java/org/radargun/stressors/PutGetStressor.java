@@ -440,8 +440,6 @@ public class PutGetStressor implements CacheWrapperStressor {
          String msg = "[" + getName() + "] exception caught in " + where + ": " + e.getLocalizedMessage();
          if (log.isDebugEnabled()) {
             log.debug(msg, e);
-         } else {
-            log.warn(msg);
          }
       }
 
