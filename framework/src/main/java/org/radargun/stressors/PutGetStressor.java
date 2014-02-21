@@ -322,7 +322,7 @@ public class PutGetStressor implements CacheWrapperStressor {
          public void run() {
             monitorQueue();
          }
-      }, 10 * 1000);
+      }, 10 * 1000,  10 * 1000);
       for (Stresser stresser : stresserList) {
          stresser.join();
          log.info("stresser[" + stresser.getName() + "] finished");
