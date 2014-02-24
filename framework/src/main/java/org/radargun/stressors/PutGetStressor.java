@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.infinispan.dataplacement.util.Pair;
 import org.radargun.CacheWrapper;
 import org.radargun.CacheWrapperStressor;
 import org.radargun.jmx.JmxRegistration;
@@ -53,12 +54,12 @@ public class PutGetStressor implements CacheWrapperStressor {
    private final KeyGeneratorFactory factory;
 
    private final Timer stopBenchmarkTimer = new Timer("stop-benchmark-timer");
-   private final Timer monitorQueueTimer = new Timer("monitor-queue-timer");
+   private final Timer statsTimer = new Timer("stats-timer");
 
    private final AtomicBoolean running = new AtomicBoolean(true);
 
    private final List<Stresser> stresserList = new LinkedList<Stresser>();
-   private final BlockingQueue<StressorOperation> queue = new LinkedBlockingQueue<StressorOperation>();
+   private final BlockingQueue<Pair<StressorOperation,Long>> queue = new LinkedBlockingQueue<Pair<StressorOperation,Long>>();
 
    private final TransactionWorkload transactionWorkload;
 
@@ -317,10 +318,10 @@ public class PutGetStressor implements CacheWrapperStressor {
             finishBenchmark();
          }
       }, simulationTime * 1000);
-      monitorQueueTimer.schedule(new TimerTask() {
+      statsTimer.schedule(new TimerTask() {
          @Override
          public void run() {
-            monitorQueue();
+            collectStatsToInfinispan();
          }
       }, 10 * 1000,  10 * 1000);
       for (Stresser stresser : stresserList) {
@@ -378,6 +379,8 @@ public class PutGetStressor implements CacheWrapperStressor {
       //exec: OK, commit: OK
       private long writeTxDuration = 0;
       private int numberOfWriteTx = 0;
+      
+      private DeferredExecutor consumerThread = null;
 
       public Stresser(int threadIndex) {
          super("Stresser-" + threadIndex);
@@ -398,14 +401,14 @@ public class PutGetStressor implements CacheWrapperStressor {
          startTime = System.nanoTime();
          if(coordinatorParticipation || !cacheWrapper.isCoordinator()) {
 
-        	 DeferredExecutor consumerThread = new DeferredExecutor(0);
+        	 consumerThread = new DeferredExecutor(0);
         	 consumerThread.start();
         	 while(running.get()){
         		 createOperation();
         	 }
         	 queuesize = queue.size();
         	 queue.clear();
-        	 queue.add(StressorOperation.STOP);
+        	 queue.add(new Pair<StressorOperation, Long>(StressorOperation.STOP, 0L));
         	 try {
 				consumerThread.join();
 			} catch (InterruptedException e) {
@@ -426,7 +429,7 @@ public class PutGetStressor implements CacheWrapperStressor {
       private void createOperation(){
          try {
             Thread.sleep(waitTime);
-            queue.add(StressorOperation.GO);
+            queue.add(new Pair<StressorOperation, Long>(StressorOperation.GO, System.nanoTime()));
             if (log.isTraceEnabled())
                log.trace(String.format(
                      "Added one operation to queue. Current queue size: {}",
@@ -456,30 +459,48 @@ public class PutGetStressor implements CacheWrapperStressor {
       }
       
       public class DeferredExecutor extends Thread{
-    	  private int id;
+         private int id;
+         private int ops = 0;
+         private double latency = 0;
 
-    	  public DeferredExecutor(int id) {
-    		  super("DeferredExecutor-" + id);
-    		  this.id = id;
-    	  }
+         public DeferredExecutor(int id) {
+            super("DeferredExecutor-" + id);
+            this.id = id;
+         }
 
-    	  public void run(){
-    		  log.info("Starting one DeferredExecutor thread");
-    		  while(running.get()){
-    			  try {
-    				  StressorOperation val = queue.poll(10, TimeUnit.SECONDS);
-    				  if(val == null){
-    					  continue;
-    				  }else if(val == StressorOperation.STOP){
-    					  break;
-    				  }else{
-    					  runOperation();
-    				  }
-    			  } catch (InterruptedException e) {
-    			  }
-    		  }
-    		  log.info("Stopping one DeferredExecutor thread");
-    	  }
+         public void run() {
+            log.info("Starting one DeferredExecutor thread");
+            while (running.get()) {
+               try {
+                  Pair<StressorOperation, Long> val = queue.poll(10,
+                        TimeUnit.SECONDS);
+                  if (val == null) {
+                     continue;
+                  } else if (val.getFst() == StressorOperation.STOP) {
+                     break;
+                  } else {
+                     synchronized (this) {
+                        latency += convertNanosToMillis(System.nanoTime()
+                              - val.getSnd());
+                        ops++;
+                     }
+                     runOperation();
+                  }
+               } catch (InterruptedException e) {
+               }
+            }
+            log.info("Stopping one DeferredExecutor thread");
+         }
+
+         public double getLatency(){
+            double retval = 0;
+            synchronized(this){
+               retval = latency / ops;
+               latency = 0;
+               ops = 0;
+            }
+            return retval;
+         }
 
     	  public void runOperation(){
     		  int i = 0;
@@ -596,6 +617,11 @@ public class PutGetStressor implements CacheWrapperStressor {
     		  return lastReadValue;
     	  }
       }
+
+
+      public double getQueueLatency(){
+         return consumerThread.getLatency();
+      }
    }
 
    private String str(Object o) {
@@ -606,8 +632,14 @@ public class PutGetStressor implements CacheWrapperStressor {
       running.set(false);
    }
    
-   private void monitorQueue(){
-      cacheWrapper.setQueueSize(queue.size());
+   private void collectStatsToInfinispan() {
+      cacheWrapper.setRgunQueueSize(queue.size());
+      double latency = 0;
+      for (Stresser i : stresserList) {
+         latency += i.getQueueLatency();
+      }
+      latency /= stresserList.size();
+      cacheWrapper.setRgunQueueLatency(latency);
    }
 
    @ManagedOperation

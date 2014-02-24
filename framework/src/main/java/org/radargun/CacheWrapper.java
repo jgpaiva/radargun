@@ -159,8 +159,14 @@ public interface CacheWrapper
    void convertTotString(ObjectInputStream objectsToMove, BufferedWriter writer) throws Exception;
    
    /**
-    * set que queue size on infinispan, to be collected by wpm
+    * set the queue size on infinispan, to be collected by wpm
     * @param queueSize
     */
-   void setQueueSize(int queueSize);
+   void setRgunQueueSize(int queueSize);
+
+   /**
+    * set the queue latency on infinispan, to be collected by wpm
+    * @param queueSize
+    */
+   void setRgunQueueLatency(double latency);
 }

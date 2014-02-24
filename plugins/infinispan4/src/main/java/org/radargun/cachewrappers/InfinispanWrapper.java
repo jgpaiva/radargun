@@ -390,9 +390,15 @@ public class InfinispanWrapper implements CacheWrapper {
    }
 
    @Override
-   public void setQueueSize(int queueSize){
+   public void setRgunQueueSize(int queueSize){
       DistributionManager manager = cache.getAdvancedCache().getDistributionManager();
       manager.setRgunQueueSize(queueSize);
+   }
+   
+   @Override
+   public void setRgunQueueLatency(double latency){
+      DistributionManager manager = cache.getAdvancedCache().getDistributionManager();
+      manager.setRgunQueueLatency(latency);
    }
    
    //================================================= JMX STATS ====================================================
