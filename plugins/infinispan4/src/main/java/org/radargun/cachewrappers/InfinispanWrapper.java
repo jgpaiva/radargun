@@ -401,6 +401,12 @@ public class InfinispanWrapper implements CacheWrapper {
       manager.setRgunQueueLatency(latency);
    }
    
+   @Override
+   public void setRgunOpsLatency(double opsLatency){
+      DistributionManager manager = cache.getAdvancedCache().getDistributionManager();
+      manager.setRgunOpsLatency(opsLatency);
+   }
+   
    //================================================= JMX STATS ====================================================
 
    private void tryResetStats(ObjectName component, MBeanServer mBeanServer) {

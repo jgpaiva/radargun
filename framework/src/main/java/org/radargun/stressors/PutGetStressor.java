@@ -461,7 +461,9 @@ public class PutGetStressor implements CacheWrapperStressor {
       public class DeferredExecutor extends Thread{
          private int id;
          private int ops = 0;
-         private double latency = 0;
+         private int queueOps = 0;
+         private double queueLatency = 0;
+         private double opLatency = 0;
 
          public DeferredExecutor(int id) {
             super("DeferredExecutor-" + id);
@@ -479,12 +481,16 @@ public class PutGetStressor implements CacheWrapperStressor {
                   } else if (val.getFst() == StressorOperation.STOP) {
                      break;
                   } else {
-                     synchronized (this) {
-                        latency += convertNanosToMillis(System.nanoTime()
-                              - val.getSnd());
-                        ops++;
-                     }
+                     long queueLatency = System.nanoTime() - val.getSnd();
+                     long opLatency = System.nanoTime();
                      runOperation();
+                     opLatency = System.nanoTime() - opLatency;
+                     synchronized (this) {
+                        this.queueLatency += convertNanosToMillis(queueLatency);
+                        queueOps++;
+                        this.opLatency += convertNanosToMillis(opLatency);
+                        ops++; 
+                     }
                   }
                } catch (InterruptedException e) {
                }
@@ -492,11 +498,21 @@ public class PutGetStressor implements CacheWrapperStressor {
             log.info("Stopping one DeferredExecutor thread");
          }
 
-         public double getLatency(){
+         public double getQueueLatency(){
             double retval = 0;
             synchronized(this){
-               retval = latency / ops;
-               latency = 0;
+               retval = queueLatency / queueOps;
+               queueLatency = 0;
+               queueOps = 0;
+            }
+            return retval;
+         }
+         
+         public double getOpLatency(){
+            double retval = 0;
+            synchronized(this){
+               retval = opLatency / ops;
+               opLatency = 0;
                ops = 0;
             }
             return retval;
@@ -620,7 +636,11 @@ public class PutGetStressor implements CacheWrapperStressor {
 
 
       public double getQueueLatency(){
-         return consumerThread.getLatency();
+         return consumerThread.getQueueLatency();
+      }
+      
+      public double getOpLatency(){
+         return consumerThread.getOpLatency();
       }
    }
 
@@ -634,12 +654,16 @@ public class PutGetStressor implements CacheWrapperStressor {
    
    private void collectStatsToInfinispan() {
       cacheWrapper.setRgunQueueSize(queue.size());
-      double latency = 0;
+      double queueLatency = 0;
+      double opsLatency = 0;
       for (Stresser i : stresserList) {
-         latency += i.getQueueLatency();
+         queueLatency += i.getQueueLatency();
+         opsLatency += i.getOpLatency();
       }
-      latency /= stresserList.size();
-      cacheWrapper.setRgunQueueLatency(latency);
+      queueLatency /= stresserList.size();
+      opsLatency /= stresserList.size();
+      cacheWrapper.setRgunQueueLatency(queueLatency);
+      cacheWrapper.setRgunOpsLatency(opsLatency);
    }
 
    @ManagedOperation
