@@ -7,10 +7,12 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.commons.math3.distribution.ZipfDistribution;
+
 /**
- * New Key Generator Factory that builds keys with the node index, thread index and a key index. 
- * Useful for the data placement algorithm
- *
+ * New Key Generator Factory that builds keys with the node index, thread index
+ * and a key index. Useful for the data placement algorithm
+ * 
  * @author Pedro Ruivo
  * @since 1.1
  */
@@ -26,6 +28,7 @@ public class KeyGeneratorFactory {
    private int valueSize;
    private int localityProbability;
    private double stdDev;
+   private double zipfAlfa;
    private boolean noContention;
    private String bucketPrefix;
 
@@ -35,8 +38,9 @@ public class KeyGeneratorFactory {
       this(1000, 1, 1, 1000, 0, false, "BUCKET");
    }
 
-   private KeyGeneratorFactory(int numberOfKeys, int numberOfThreads, int numberOfNodes, int valueSize, int localityProbability,
-                               boolean noContention, String bucketPrefix) {
+   private KeyGeneratorFactory(int numberOfKeys, int numberOfThreads,
+         int numberOfNodes, int valueSize, int localityProbability,
+         boolean noContention, String bucketPrefix) {
       currentWorkload = new AtomicReference<Workload>();
       setBucketPrefix(bucketPrefix);
       setNumberOfKeys(numberOfKeys);
@@ -52,14 +56,18 @@ public class KeyGeneratorFactory {
          int nodeIdx = numberOfKeys % numberOfNodes;
          int numberOfKeysPerNode = (numberOfKeys - nodeIdx) / numberOfNodes;
          int threadIdx = numberOfKeysPerNode % numberOfThreads;
-         int numberOfKeysPerThread = (numberOfKeysPerNode - threadIdx) / numberOfThreads;
+         int numberOfKeysPerThread = (numberOfKeysPerNode - threadIdx)
+               / numberOfThreads;
 
-         if (localityProbability >= 0 && stdDev > 0) {
-            throw new IllegalArgumentException("Std Dev and Locality Probability cannot be both higher or equals than 0");
+         if ((localityProbability >= 0 && stdDev > 0)
+               || (zipfAlfa != -1 && (localityProbability >= 0 || stdDev > 0))) {
+            throw new IllegalArgumentException(
+                  "Std Dev and Locality Probability cannot be both higher or equals than 0");
          }
 
-         currentWorkload.set(new Workload(numberOfKeys, numberOfNodes, numberOfThreads, numberOfKeysPerThread, nodeIdx, threadIdx,
-                                          localityProbability, noContention, stdDev));
+         currentWorkload.set(new Workload(numberOfKeys, numberOfNodes,
+               numberOfThreads, numberOfKeysPerThread, nodeIdx, threadIdx,
+               localityProbability, noContention, stdDev, zipfAlfa));
       }
    }
 
@@ -103,6 +111,10 @@ public class KeyGeneratorFactory {
       this.stdDev = stdDev;
    }
 
+   public void setZipfAlfa(double value) {
+      this.zipfAlfa = value;
+   }
+
    public void setNoContention(boolean noContention) {
       this.noContention = noContention;
    }
@@ -139,12 +151,12 @@ public class KeyGeneratorFactory {
       return localityProbability;
    }
 
-   //debug only
+   // debug only
    public Workload getCurrentWorkload() {
       return currentWorkload.get();
    }
 
-   //debug only
+   // debug only
    public Object convertIndexToKey(Workload workload, int index) {
       int nodeIndex = 0;
       int threadIndex = 0;
@@ -173,14 +185,10 @@ public class KeyGeneratorFactory {
 
    @Override
    public String toString() {
-      return "KeyGeneratorFactory{" +
-            "numberOfNodes=" + numberOfNodes +
-            ", numberOfThreads=" + numberOfThreads +
-            ", numberOfKeys=" + numberOfKeys +
-            ", valueSize=" + valueSize +
-            ", noContention=" + noContention +
-            ", bucketPrefix='" + bucketPrefix + '\'' +
-            '}';
+      return "KeyGeneratorFactory{" + "numberOfNodes=" + numberOfNodes
+            + ", numberOfThreads=" + numberOfThreads + ", numberOfKeys="
+            + numberOfKeys + ", valueSize=" + valueSize + ", noContention="
+            + noContention + ", bucketPrefix='" + bucketPrefix + '\'' + '}';
    }
 
    private Object getRandomValue(Random random) {
@@ -197,7 +205,8 @@ public class KeyGeneratorFactory {
    }
 
    private int maxKeyIdx(Workload workload, int nodeIdx, int threadIdx) {
-      return workload.keyPerThread + (nodeIdx < workload.nodeIdx ? 1 : 0) + (threadIdx < workload.threadIdx ? 1 : 0);
+      return workload.keyPerThread + (nodeIdx < workload.nodeIdx ? 1 : 0)
+            + (threadIdx < workload.threadIdx ? 1 : 0);
    }
 
    private String getBucket(int threadIdx) {
@@ -222,7 +231,8 @@ public class KeyGeneratorFactory {
 
       @Override
       public boolean hasNext() {
-         return nodeIdx < workload.numberOfNodes && threadIdx < workload.numberOfThreads && keyIdx < maxKeyIdx;
+         return nodeIdx < workload.numberOfNodes
+               && threadIdx < workload.numberOfThreads && keyIdx < maxKeyIdx;
       }
 
       @Override
@@ -230,9 +240,8 @@ public class KeyGeneratorFactory {
          if (!hasNext()) {
             throw new NoSuchElementException();
          }
-         WarmupEntry next = new WarmupEntry(getBucket(threadIdx),
-                                            createKey(nodeIdx, threadIdx, keyIdx),
-                                            getRandomValue(random));
+         WarmupEntry next = new WarmupEntry(getBucket(threadIdx), createKey(
+               nodeIdx, threadIdx, keyIdx), getRandomValue(random));
          increment();
          return next;
       }
@@ -292,8 +301,11 @@ public class KeyGeneratorFactory {
 
          boolean useLocalityProbability = workload.localityProbability >= 0;
          boolean useGaussian = workload.stdDev > 0;
+         boolean useZipf = workload.zipfAlfa > -1;
 
-         if (workload.noContention) {
+         if (useZipf) {
+            return zipfKey(workload);
+         } else if (workload.noContention) {
             return noContentionKey(workload);
          } else if (!useGaussian && !useLocalityProbability) {
             return randomKey(workload);
@@ -310,7 +322,8 @@ public class KeyGeneratorFactory {
          Workload workload = currentWorkload.get();
          if (workload.noContention) {
             for (int i = 0; i < size; ++i) {
-               int keyIdx = random.nextInt(maxKeyIdx(workload, nodeIdx, threadIdx));
+               int keyIdx = random.nextInt(maxKeyIdx(workload, nodeIdx,
+                     threadIdx));
 
                if (!findNoContentedNextUnique(keys, workload, keyIdx)) {
                   break;
@@ -320,7 +333,8 @@ public class KeyGeneratorFactory {
             for (int i = 0; i < size; ++i) {
                int nodeIdx = random.nextInt(workload.numberOfNodes);
                int threadIdx = random.nextInt(workload.numberOfThreads);
-               int keyIdx = random.nextInt(maxKeyIdx(workload, nodeIdx, threadIdx));
+               int keyIdx = random.nextInt(maxKeyIdx(workload, nodeIdx,
+                     threadIdx));
 
                if (!findNextUnique(keys, workload, nodeIdx, threadIdx, keyIdx)) {
                   break;
@@ -358,7 +372,8 @@ public class KeyGeneratorFactory {
             nodeIdx = this.nodeIdx;
          } else {
             nodeIdx = random.nextInt(workload.numberOfNodes);
-            nodeIdx = nodeIdx == this.nodeIdx ? (++nodeIdx % workload.numberOfNodes) : nodeIdx;
+            nodeIdx = nodeIdx == this.nodeIdx ? (++nodeIdx % workload.numberOfNodes)
+                  : nodeIdx;
          }
          int threadIdx = random.nextInt(workload.numberOfThreads);
          int keyIdx = random.nextInt(maxKeyIdx(workload, nodeIdx, threadIdx));
@@ -366,24 +381,35 @@ public class KeyGeneratorFactory {
       }
 
       private Object gaussianKey(Workload workload) {
-         long keyIndex = getGaussKey(workload.numberOfKeys, workload.numberOfNodes, workload.stdDev);
+         long keyIndex = getGaussKey(workload.numberOfKeys,
+               workload.numberOfNodes, workload.stdDev);
          return convertIndexToKey(workload, (int) keyIndex);
       }
 
-      private long getGaussKey(int numberOfKeys, int numberOfNodes, double stdDev){
+      private long getGaussKey(int numberOfKeys, int numberOfNodes,
+            double stdDev) {
          double gauss = random.nextGaussian();
-         double avg = (((double)numberOfKeys) *
-                             (((double)nodeIdx / ((double)numberOfNodes)) +
-                                    0.5D / (double)numberOfNodes));
-         long res = Math.round(Math.IEEEremainder(gauss * stdDev + avg, numberOfKeys));
-         if(res < 0)
+         double avg = (((double) numberOfKeys) * (((double) nodeIdx / ((double) numberOfNodes)) + 0.5D / (double) numberOfNodes));
+         long res = Math.round(Math.IEEEremainder(gauss * stdDev + avg,
+               numberOfKeys));
+         if (res < 0)
             return numberOfKeys + res;
          else
             return res;
       }
 
-      private boolean findNextUnique(Set<Object> alreadyCollected, Workload workload, int initialNodeIdx, int initialThreadIdx,
-                                     int initialKeyIndex) {
+      private Object zipfKey(Workload workload) {
+         long keyIndex = getZipfKey(workload.zipfDist, workload.zipfShuffle);
+         return convertIndexToKey(workload, (int) keyIndex);
+      }
+
+      private long getZipfKey(ZipfDistribution zipfDist, int [] zipfShuffle){
+         return zipfShuffle[zipfDist.sample()]; 
+      }
+
+      private boolean findNextUnique(Set<Object> alreadyCollected,
+            Workload workload, int initialNodeIdx, int initialThreadIdx,
+            int initialKeyIndex) {
          int nodeIdx = initialNodeIdx;
          int threadIdx = initialThreadIdx;
          int maxKeyIdx = maxKeyIdx(workload, nodeIdx, threadIdx);
@@ -402,12 +428,14 @@ public class KeyGeneratorFactory {
                }
                maxKeyIdx = maxKeyIdx(workload, nodeIdx, threadIdx);
             }
-         } while (nodeIdx != initialNodeIdx || threadIdx != initialThreadIdx || keyIdx != initialKeyIndex);
+         } while (nodeIdx != initialNodeIdx || threadIdx != initialThreadIdx
+               || keyIdx != initialKeyIndex);
 
          return false;
       }
 
-      private boolean findNoContentedNextUnique(Set<Object> alreadyCollected, Workload workload, int initialKeyIndex) {
+      private boolean findNoContentedNextUnique(Set<Object> alreadyCollected,
+            Workload workload, int initialKeyIndex) {
          int maxKeyIdx = maxKeyIdx(workload, nodeIdx, threadIdx);
          int keyIdx = initialKeyIndex;
 
@@ -434,9 +462,14 @@ public class KeyGeneratorFactory {
       private final int localityProbability;
       private final boolean noContention;
       private final double stdDev;
+      private final double zipfAlfa;
+      private final ZipfDistribution zipfDist;
+      private final int[] zipfShuffle;
 
-      private Workload(int numberOfKeys, int numberOfNodes, int numberOfThreads, int keyPerThread, int nodeIdx, int threadIdx,
-                       int localityProbability, boolean noContention, double stdDev) {
+      private Workload(int numberOfKeys, int numberOfNodes,
+            int numberOfThreads, int keyPerThread, int nodeIdx, int threadIdx,
+            int localityProbability, boolean noContention, double stdDev,
+            double zipfAlfa) {
          this.numberOfKeys = numberOfKeys;
          this.numberOfNodes = numberOfNodes;
          this.numberOfThreads = numberOfThreads;
@@ -446,6 +479,33 @@ public class KeyGeneratorFactory {
          this.localityProbability = localityProbability;
          this.noContention = noContention;
          this.stdDev = stdDev;
+         this.zipfAlfa = zipfAlfa;
+
+         if (zipfAlfa != -1) {
+            this.zipfDist = new ZipfDistribution(numberOfKeys, zipfAlfa);
+            zipfShuffle = new int[numberOfKeys];
+            for (int i = 0; i < zipfShuffle.length; i++) {
+               zipfShuffle[i] = i;
+            }
+            shuffle(zipfShuffle);
+         } else {
+            this.zipfDist = null;
+            this.zipfShuffle = null;
+         }
       }
    }
+   
+   private static void shuffle(int[] a) {
+      int N = a.length;
+      for (int i = 0; i < N; i++) {
+          int r = i + (int) (Math.random() * (N-i));   // between i and N-1
+          swap(a, i, r);
+      }
+  }
+   
+   private static void swap(int[] a, int i, int j) {
+      int swap = a[i];
+      a[i] = a[j];
+      a[j] = swap;
+  }
 }

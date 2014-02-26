@@ -37,6 +37,7 @@ import org.infinispan.dataplacement.c50.tree.DecisionTree;
 import org.infinispan.dataplacement.lookup.ObjectReplicationLookup;
 import org.infinispan.dataplacement.lookup.ObjectReplicationLookupFactory;
 import org.infinispan.dataplacement.stats.IncrementableLong;
+import org.infinispan.distribution.DataLocality;
 import org.infinispan.distribution.DistributionManager;
 import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.manager.DefaultCacheManager;
@@ -186,9 +187,9 @@ public class InfinispanWrapper implements CacheWrapper {
    }
 
    @Override
-   public boolean isKeyLocal(String bucket, String key) {
+   public boolean isKeyLocal(Object key) {
       DistributionManager dm = cache.getAdvancedCache().getDistributionManager();
-      return dm == null || dm.isLocal(key);
+      return dm == null || dm.getLocality(key) == DataLocality.LOCAL;
    }
 
    @Override

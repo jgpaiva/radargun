@@ -26,15 +26,15 @@ import org.radargun.jmx.annotations.ManagedAttribute;
 import org.radargun.jmx.annotations.ManagedOperation;
 import org.radargun.keygen2.KeyGenerator;
 import org.radargun.keygen2.KeyGeneratorFactory;
-import org.radargun.utils.TransactionWorkload;
-import org.radargun.utils.TransactionWorkload.Operation;
-import org.radargun.utils.TransactionWorkload.OperationIterator;
+import org.radargun.utils.PutGetWorkload;
+import org.radargun.utils.PutGetWorkload.OperationIterator;
 import org.radargun.utils.Utils;
 
 /**
- * On multiple threads executes put and get operations against the CacheWrapper, and returns the result as an Map.
- *
- * @author Mircea.Markus@jboss.com 
+ * On multiple threads executes put and get operations against the CacheWrapper,
+ * and returns the result as an Map.
+ * 
+ * @author Mircea.Markus@jboss.com
  * @author Pedro Ruivo
  * @since 1.0
  */
@@ -59,29 +59,30 @@ public class PutGetStressor implements CacheWrapperStressor {
    private final AtomicBoolean running = new AtomicBoolean(true);
 
    private final List<Stresser> stresserList = new LinkedList<Stresser>();
-   private final BlockingQueue<Pair<StressorOperation,Long>> queue = new LinkedBlockingQueue<Pair<StressorOperation,Long>>();
+   private final BlockingQueue<Pair<StressorOperation, Long>> queue = new LinkedBlockingQueue<Pair<StressorOperation, Long>>();
 
-   private final TransactionWorkload transactionWorkload;
+   private final PutGetWorkload transactionWorkload;
 
-   //indicates that the coordinator execute or not txs -- PEDRO
+   // indicates that the coordinator execute or not txs -- PEDRO
    private boolean coordinatorParticipation = true;
 
-   //simulation time (default: 30 seconds)
+   // simulation time (default: 30 seconds)
    private long simulationTime = 30L;
 
-   //time between operation execution (in millis, default: 1second)
+   // time between operation execution (in millis, default: 1second)
    private long waitTime = 1000;
 
-   //number of operations per second (default: 100)
+   // number of operations per second (default: 100)
    private long opsPerSecond = 100;
 
    public PutGetStressor(KeyGeneratorFactory factory) {
       this.factory = factory == null ? new KeyGeneratorFactory() : factory;
-      transactionWorkload = new TransactionWorkload();
+      transactionWorkload = new PutGetWorkload();
       JmxRegistration.getInstance().processStage(this);
    }
 
-   @SuppressWarnings("UnusedDeclaration") //loaded dynamically
+   @SuppressWarnings("UnusedDeclaration")
+   // loaded dynamically
    public PutGetStressor() {
       this(new KeyGeneratorFactory());
    }
@@ -110,7 +111,7 @@ public class PutGetStressor implements CacheWrapperStressor {
    }
 
    private Map<String, String> processResults() {
-      //total duration
+      // total duration
       long totalDuration = 0;
 
       long commitFailedReadOnlyTxDuration = 0;
@@ -121,7 +122,6 @@ public class PutGetStressor implements CacheWrapperStressor {
 
       long execFailedReadOnlyTxDuration = 0;
       int numberOfExecFailedReadOnlyTx = 0;
-
 
       long execFailedWriteTxDuration = 0;
       int numberOfExecFailedWriteTx = 0;
@@ -142,7 +142,7 @@ public class PutGetStressor implements CacheWrapperStressor {
       long writeTxRollbackDuration = 0;
 
       long queuesize = 0;
-      
+
       for (Stresser stresser : stresserList) {
          totalDuration += stresser.delta;
          queuesize += stresser.queuesize;
@@ -178,120 +178,170 @@ public class PutGetStressor implements CacheWrapperStressor {
       Map<String, String> results = new LinkedHashMap<String, String>();
       int numOfThreads = stresserList.size();
 
-      results.put("DURATION(msec)", str(convertNanosToMillis(totalDuration) / numOfThreads));
-      results.put("TX_PER_SEC", str(calculateTxPerSec(numberOfReadOnlyTx + numberOfWriteTx,convertNanosToMillis(totalDuration), numOfThreads)));
-      results.put("RO_TX_PER_SEC", str(calculateTxPerSec(numberOfReadOnlyTx, convertNanosToMillis(totalDuration), numOfThreads)));
-      results.put("WRT_TX_SEC", str(calculateTxPerSec(numberOfWriteTx, convertNanosToMillis(totalDuration), numOfThreads)));
+      results.put("DURATION(msec)", str(convertNanosToMillis(totalDuration)
+            / numOfThreads));
+      results.put(
+            "TX_PER_SEC",
+            str(calculateTxPerSec(numberOfReadOnlyTx + numberOfWriteTx,
+                  convertNanosToMillis(totalDuration), numOfThreads)));
+      results.put(
+            "RO_TX_PER_SEC",
+            str(calculateTxPerSec(numberOfReadOnlyTx,
+                  convertNanosToMillis(totalDuration), numOfThreads)));
+      results.put(
+            "WRT_TX_SEC",
+            str(calculateTxPerSec(numberOfWriteTx,
+                  convertNanosToMillis(totalDuration), numOfThreads)));
 
-      results.put("WRT_TX_DUR(msec)", str(convertNanosToMillis(writeTxDuration / numOfThreads)));
-      results.put("RO_TX_DUR(msec)", str(convertNanosToMillis(readOnlyTxDuration / numOfThreads)));
+      results.put("WRT_TX_DUR(msec)", str(convertNanosToMillis(writeTxDuration
+            / numOfThreads)));
+      results.put("RO_TX_DUR(msec)",
+            str(convertNanosToMillis(readOnlyTxDuration / numOfThreads)));
 
-      if(numberOfReadOnlyTx != 0) {
-         results.put("AVG_RO_OK_TX_DUR(msec)",str(convertNanosToMillis(readOnlyTxDuration / numOfThreads) / numberOfReadOnlyTx));
+      if (numberOfReadOnlyTx != 0) {
+         results.put("AVG_RO_OK_TX_DUR(msec)",
+               str(convertNanosToMillis(readOnlyTxDuration / numOfThreads)
+                     / numberOfReadOnlyTx));
       } else {
-         results.put("AVG_RO_OK_TX_DUR(msec)",str(0));
+         results.put("AVG_RO_OK_TX_DUR(msec)", str(0));
       }
 
-      if(numberOfExecFailedReadOnlyTx != 0) {
-         results.put("AVG_RO_EXEC_ERR_TX_DUR(msec)",str(convertNanosToMillis(execFailedReadOnlyTxDuration / numOfThreads) / numberOfExecFailedReadOnlyTx));
+      if (numberOfExecFailedReadOnlyTx != 0) {
+         results.put("AVG_RO_EXEC_ERR_TX_DUR(msec)",
+               str(convertNanosToMillis(execFailedReadOnlyTxDuration
+                     / numOfThreads)
+                     / numberOfExecFailedReadOnlyTx));
       } else {
-         results.put("AVG_RO_EXEC_ERR_TX_DUR(msec)",str(0));
+         results.put("AVG_RO_EXEC_ERR_TX_DUR(msec)", str(0));
       }
 
-      if(numberOfCommitFailedReadOnlyTx != 0) {
-         results.put("AVG_RO_COMMIT_ERR_TX_DUR(msec)",str(convertNanosToMillis(commitFailedReadOnlyTxDuration / numOfThreads) / numberOfCommitFailedReadOnlyTx));
+      if (numberOfCommitFailedReadOnlyTx != 0) {
+         results.put("AVG_RO_COMMIT_ERR_TX_DUR(msec)",
+               str(convertNanosToMillis(commitFailedReadOnlyTxDuration
+                     / numOfThreads)
+                     / numberOfCommitFailedReadOnlyTx));
       } else {
-         results.put("AVG_RO_COMMIT_ERR_TX_DUR(msec)",str(0));
+         results.put("AVG_RO_COMMIT_ERR_TX_DUR(msec)", str(0));
       }
 
-      if(numberOfWriteTx != 0) {
-         results.put("AVG_WRT_OK_TX_DUR(msec)",str(convertNanosToMillis(writeTxDuration / numOfThreads) / numberOfWriteTx));
+      if (numberOfWriteTx != 0) {
+         results.put("AVG_WRT_OK_TX_DUR(msec)",
+               str(convertNanosToMillis(writeTxDuration / numOfThreads)
+                     / numberOfWriteTx));
       } else {
-         results.put("AVG_WRT_OK_TX_DUR(msec)",str(0));
+         results.put("AVG_WRT_OK_TX_DUR(msec)", str(0));
       }
 
-      if(numberOfExecFailedWriteTx != 0) {
-         results.put("AVG_WRT_EXEC_ERR_TX_DUR(msec)",str(convertNanosToMillis(execFailedWriteTxDuration / numOfThreads) / numberOfExecFailedWriteTx));
+      if (numberOfExecFailedWriteTx != 0) {
+         results.put("AVG_WRT_EXEC_ERR_TX_DUR(msec)",
+               str(convertNanosToMillis(execFailedWriteTxDuration
+                     / numOfThreads)
+                     / numberOfExecFailedWriteTx));
       } else {
-         results.put("AVG_WRT_EXEC_ERR_TX_DUR(msec)",str(0));
+         results.put("AVG_WRT_EXEC_ERR_TX_DUR(msec)", str(0));
       }
 
-      if(numberOfCommitFailedWriteTx != 0) {
-         results.put("AVG_WRT_COMMIT_ERR_TX_DUR(sec)",str(convertNanosToMillis(commitFailedWriteTxDuration / numOfThreads) / numberOfCommitFailedWriteTx));
+      if (numberOfCommitFailedWriteTx != 0) {
+         results.put("AVG_WRT_COMMIT_ERR_TX_DUR(sec)",
+               str(convertNanosToMillis(commitFailedWriteTxDuration
+                     / numOfThreads)
+                     / numberOfCommitFailedWriteTx));
       } else {
-         results.put("AVG_WRT_COMMIT_ERR_TX_DUR(sec)",str(0));
+         results.put("AVG_WRT_COMMIT_ERR_TX_DUR(sec)", str(0));
       }
 
-      if(numberOfReadOnlyTx != 0) {
-         results.put("AVG_OK_RO_COMMIT_DUR(msec)",str(convertNanosToMillis(readOnlyTxCommitSuccessDuration / numOfThreads) / numberOfReadOnlyTx));
+      if (numberOfReadOnlyTx != 0) {
+         results.put("AVG_OK_RO_COMMIT_DUR(msec)",
+               str(convertNanosToMillis(readOnlyTxCommitSuccessDuration
+                     / numOfThreads)
+                     / numberOfReadOnlyTx));
       } else {
-         results.put("AVG_OK_RO_COMMIT_DUR(msec)",str(0));
+         results.put("AVG_OK_RO_COMMIT_DUR(msec)", str(0));
       }
 
-      if(numberOfCommitFailedReadOnlyTx != 0) {
-         results.put("AVG_ERR_RO_COMMIT_DUR(msec)",str(convertNanosToMillis(readOnlyTxCommitFailDuration / numOfThreads) / numberOfCommitFailedReadOnlyTx));
+      if (numberOfCommitFailedReadOnlyTx != 0) {
+         results.put("AVG_ERR_RO_COMMIT_DUR(msec)",
+               str(convertNanosToMillis(readOnlyTxCommitFailDuration
+                     / numOfThreads)
+                     / numberOfCommitFailedReadOnlyTx));
       } else {
-         results.put("AVG_ERR_RO_COMMIT_DUR(msec)",str(0));
+         results.put("AVG_ERR_RO_COMMIT_DUR(msec)", str(0));
       }
 
-      if(numberOfExecFailedReadOnlyTx != 0) {
-         results.put("AVG_RO_ROLLBACK_DUR(msec)",str(convertNanosToMillis(readOnlyTxRollbackDuration / numOfThreads) / numberOfExecFailedReadOnlyTx));
+      if (numberOfExecFailedReadOnlyTx != 0) {
+         results.put("AVG_RO_ROLLBACK_DUR(msec)",
+               str(convertNanosToMillis(readOnlyTxRollbackDuration
+                     / numOfThreads)
+                     / numberOfExecFailedReadOnlyTx));
       } else {
-         results.put("AVG_RO_ROLLBACK_DUR(msec)",str(0));
+         results.put("AVG_RO_ROLLBACK_DUR(msec)", str(0));
       }
 
-      if(numberOfWriteTx != 0) {
-         results.put("AVG_OK_WRT_COMMIT_DUR(msec)",str(convertNanosToMillis(writeTxCommitSuccessDuration / numOfThreads) / numberOfWriteTx));
+      if (numberOfWriteTx != 0) {
+         results.put("AVG_OK_WRT_COMMIT_DUR(msec)",
+               str(convertNanosToMillis(writeTxCommitSuccessDuration
+                     / numOfThreads)
+                     / numberOfWriteTx));
       } else {
-         results.put("AVG_OK_WRT_COMMIT_DUR(msec)",str(0));
+         results.put("AVG_OK_WRT_COMMIT_DUR(msec)", str(0));
       }
 
-      if(numberOfCommitFailedWriteTx != 0) {
-         results.put("AVG_ERR_WRT_COMMIT_DUR(msec)",str(convertNanosToMillis(writeTxCommitFailDuration / numOfThreads) / numberOfCommitFailedWriteTx));
+      if (numberOfCommitFailedWriteTx != 0) {
+         results.put("AVG_ERR_WRT_COMMIT_DUR(msec)",
+               str(convertNanosToMillis(writeTxCommitFailDuration
+                     / numOfThreads)
+                     / numberOfCommitFailedWriteTx));
       } else {
-         results.put("AVG_ERR_WRT_COMMIT_DUR(msec)",str(0));
+         results.put("AVG_ERR_WRT_COMMIT_DUR(msec)", str(0));
       }
 
-      if(numberOfExecFailedWriteTx != 0) {
-         results.put("AVG_WRT_ROLLBACK_DUR(msec)",str(convertNanosToMillis(writeTxRollbackDuration / numOfThreads) / numberOfExecFailedWriteTx));
+      if (numberOfExecFailedWriteTx != 0) {
+         results.put("AVG_WRT_ROLLBACK_DUR(msec)",
+               str(convertNanosToMillis(writeTxRollbackDuration / numOfThreads)
+                     / numberOfExecFailedWriteTx));
       } else {
-         results.put("AVG_WRT_ROLLBACK_DUR(msec)",str(0));
+         results.put("AVG_WRT_ROLLBACK_DUR(msec)", str(0));
       }
 
       results.put("RO_TX_COUNT", str(numberOfReadOnlyTx));
       results.put("RO_EXEC_ERR_TX_COUNT", str(numberOfExecFailedReadOnlyTx));
-      results.put("RO_COMMIT_ERR_TX_COUNT", str(numberOfCommitFailedReadOnlyTx));
+      results
+            .put("RO_COMMIT_ERR_TX_COUNT", str(numberOfCommitFailedReadOnlyTx));
       results.put("WRT_TX_COUNT", str(numberOfWriteTx));
       results.put("WRT_EXEC_ERR_TX_COUNT", str(numberOfExecFailedWriteTx));
       results.put("WRT_COMMIT_ERR_TX_COUNT", str(numberOfCommitFailedWriteTx));
       results.put("QUEUE_SIZE", str(queuesize));
 
-      int totalFailedTx = numberOfExecFailedReadOnlyTx + numberOfCommitFailedReadOnlyTx + numberOfExecFailedWriteTx +
-            numberOfCommitFailedWriteTx;
+      int totalFailedTx = numberOfExecFailedReadOnlyTx
+            + numberOfCommitFailedReadOnlyTx + numberOfExecFailedWriteTx
+            + numberOfCommitFailedWriteTx;
 
       results.putAll(cacheWrapper.getAdditionalStats());
 
-      log.info("Finished generating report. Nr of failed transactions on this node is: " + totalFailedTx +
-                     ". Test duration is: " + Utils.getDurationString(System.currentTimeMillis() - startTime));
+      log.info("Finished generating report. Nr of failed transactions on this node is: "
+            + totalFailedTx
+            + ". Test duration is: "
+            + Utils.getDurationString(System.currentTimeMillis() - startTime));
 
       return results;
    }
 
-   private double calculateTxPerSec(int txCount, double txDuration, int numOfThreads) {
+   private double calculateTxPerSec(int txCount, double txDuration,
+         int numOfThreads) {
       if (txDuration <= 0) {
          return 0;
       }
       return txCount / ((txDuration / numOfThreads) / 1000.0);
    }
-   
-   private int calculateThreads(long opsPerSecond){
-      if(opsPerSecond < 100){
-         this.waitTime = 1000/opsPerSecond;
+
+   private int calculateThreads(long opsPerSecond) {
+      if (opsPerSecond < 100) {
+         this.waitTime = 1000 / opsPerSecond;
          return 1;
-      }else{
+      } else {
          this.waitTime = 10;
-         long perThreadRate = 1000/waitTime;
-         int threads = (int) (opsPerSecond/perThreadRate);
+         long perThreadRate = 1000 / waitTime;
+         int threads = (int) (opsPerSecond / perThreadRate);
          return threads;
       }
    }
@@ -303,14 +353,15 @@ public class PutGetStressor implements CacheWrapperStressor {
          Stresser stresser = new Stresser(threadIndex);
          stresserList.add(stresser);
 
-         try{
+         try {
             stresser.start();
-         } catch (Throwable t){
+         } catch (Throwable t) {
             log.warn("Error starting all the stressers", t);
          }
       }
 
-      log.info("Cache private class Stresser extends Thread { wrapper info is: " + cacheWrapper.getInfo());
+      log.info("Cache private class Stresser extends Thread { wrapper info is: "
+            + cacheWrapper.getInfo());
       startPoint.countDown();
       stopBenchmarkTimer.schedule(new TimerTask() {
          @Override
@@ -323,7 +374,7 @@ public class PutGetStressor implements CacheWrapperStressor {
          public void run() {
             collectStatsToInfinispan();
          }
-      }, 10 * 1000,  10 * 1000);
+      }, 10 * 1000, 10 * 1000);
       for (Stresser stresser : stresserList) {
          stresser.join();
          log.info("stresser[" + stresser.getName() + "] finished");
@@ -331,7 +382,10 @@ public class PutGetStressor implements CacheWrapperStressor {
       log.info("All stressers have finished their execution");
    }
 
-   public enum StressorOperation{GO,STOP}
+   public enum StressorOperation {
+      GO, STOP
+   }
+
    private class Stresser extends Thread {
 
       private int threadIndex;
@@ -340,46 +394,46 @@ public class PutGetStressor implements CacheWrapperStressor {
 
       private long delta = 0;
       private long startTime = 0;
-      
-      //queue size at end of benchmark
+
+      // queue size at end of benchmark
       private int queuesize;
 
-      //execution successful and commit successful
+      // execution successful and commit successful
       private long readOnlyTxCommitSuccessDuration;
       private long writeTxCommitSuccessDuration;
 
-      //execution successful but the commit fails
+      // execution successful but the commit fails
       private long readOnlyTxCommitFailDuration;
       private long writeTxCommitFailDuration;
 
-      //execution failed
+      // execution failed
       private long readOnlyTxTollbackDuration;
       private long writeTxTollbackDuration;
 
-      //exec: OK, commit: ERR
+      // exec: OK, commit: ERR
       private long commitFailedReadOnlyTxDuration;
       private int numberOfCommitFailedReadOnlyTx;
 
-      //exec: OK, commit: ERR
+      // exec: OK, commit: ERR
       private long commitFailedWriteTxDuration;
       private int numberOfCommitFailedWriteTx;
 
-      //exec: ERR
+      // exec: ERR
       private long execFailedReadOnlyTxDuration;
       private int numberOfExecFailedReadOnlyTx;
 
-      //exec: ERR
+      // exec: ERR
       private long execFailedWriteTxDuration;
       private int numberOfExecFailedWriteTx;
 
-      //exec: OK, commit: OK
+      // exec: OK, commit: OK
       private long readOnlyTxDuration = 0;
       private int numberOfReadOnlyTx = 0;
 
-      //exec: OK, commit: OK
+      // exec: OK, commit: OK
       private long writeTxDuration = 0;
       private int numberOfWriteTx = 0;
-      
+
       private DeferredExecutor consumerThread = null;
 
       public Stresser(int threadIndex) {
@@ -397,27 +451,29 @@ public class PutGetStressor implements CacheWrapperStressor {
          } catch (InterruptedException e) {
             log.warn(e);
          }
-         
-         startTime = System.nanoTime();
-         if(coordinatorParticipation || !cacheWrapper.isCoordinator()) {
 
-        	 consumerThread = new DeferredExecutor(0);
-        	 consumerThread.start();
-        	 while(running.get()){
-        		 createOperation();
-        	 }
-        	 queuesize = queue.size();
-        	 queue.clear();
-        	 queue.add(new Pair<StressorOperation, Long>(StressorOperation.STOP, 0L));
-        	 try {
-				consumerThread.join();
-			} catch (InterruptedException e) {
-				log.warn("could not join with consumerThread?",e);
-			}
+         startTime = System.nanoTime();
+         if (coordinatorParticipation || !cacheWrapper.isCoordinator()) {
+
+            consumerThread = new DeferredExecutor(0);
+            consumerThread.start();
+            while (running.get()) {
+               createOperation();
+            }
+            queuesize = queue.size();
+            queue.clear();
+            queue.add(new Pair<StressorOperation, Long>(StressorOperation.STOP,
+                  0L));
+            try {
+               consumerThread.join();
+            } catch (InterruptedException e) {
+               log.warn("could not join with consumerThread?", e);
+            }
 
          } else {
-            long sleepTime = simulationTime / 1000000; //nano to millis
-            log.info("I am a coordinator and I wouldn't execute transactions. sleep for " + sleepTime + "(ms)");
+            long sleepTime = simulationTime / 1000000; // nano to millis
+            log.info("I am a coordinator and I wouldn't execute transactions. sleep for "
+                  + sleepTime + "(ms)");
             try {
                Thread.sleep(sleepTime);
             } catch (InterruptedException e) {
@@ -425,11 +481,12 @@ public class PutGetStressor implements CacheWrapperStressor {
             }
          }
       }
-      
-      private void createOperation(){
+
+      private void createOperation() {
          try {
             Thread.sleep(waitTime);
-            queue.add(new Pair<StressorOperation, Long>(StressorOperation.GO, System.nanoTime()));
+            queue.add(new Pair<StressorOperation, Long>(StressorOperation.GO,
+                  System.nanoTime()));
             if (log.isTraceEnabled())
                log.trace(String.format(
                      "Added one operation to queue. Current queue size: {}",
@@ -440,7 +497,8 @@ public class PutGetStressor implements CacheWrapperStressor {
       }
 
       private void logException(Throwable e, String where) {
-         String msg = "[" + getName() + "] exception caught in " + where + ": " + e.getLocalizedMessage();
+         String msg = "[" + getName() + "] exception caught in " + where + ": "
+               + e.getLocalizedMessage();
          if (log.isDebugEnabled()) {
             log.debug(msg, e);
          }
@@ -450,15 +508,20 @@ public class PutGetStressor implements CacheWrapperStressor {
          int opsCountStatusLog = 5000;
          if ((i + 1) % opsCountStatusLog == 0) {
             long elapsedTime = System.nanoTime() - startTime;
-            //this is printed here just to make sure JIT doesn't
+            // this is printed here just to make sure JIT doesn't
             // skip the call to cacheWrapper.get
-            log.info("Thread index '" + threadIndex + "' executed " + (i + 1) + " transactions. Elapsed time: " +
-                           Utils.getDurationString((long) convertNanosToMillis(elapsedTime)) +
-                           ". Last value read is " + result);
+            log.info("Thread index '"
+                  + threadIndex
+                  + "' executed "
+                  + (i + 1)
+                  + " transactions. Elapsed time: "
+                  + Utils
+                        .getDurationString((long) convertNanosToMillis(elapsedTime))
+                  + ". Last value read is " + result);
          }
       }
-      
-      public class DeferredExecutor extends Thread{
+
+      public class DeferredExecutor extends Thread {
          private int id;
          private int ops = 0;
          private int queueOps = 0;
@@ -483,14 +546,15 @@ public class PutGetStressor implements CacheWrapperStressor {
                   } else {
                      long queueLatency = System.nanoTime() - val.getSnd();
                      long opLatency = System.nanoTime();
-                     runOperation();
+                     boolean ranOperation = runOperation();
                      opLatency = System.nanoTime() - opLatency;
-                     synchronized (this) {
-                        this.queueLatency += convertNanosToMillis(queueLatency);
-                        queueOps++;
-                        this.opLatency += convertNanosToMillis(opLatency);
-                        ops++; 
-                     }
+                     if (ranOperation)
+                        synchronized (this) {
+                           this.queueLatency += convertNanosToMillis(queueLatency);
+                           queueOps++;
+                           this.opLatency += convertNanosToMillis(opLatency);
+                           ops++;
+                        }
                   }
                } catch (InterruptedException e) {
                }
@@ -498,19 +562,19 @@ public class PutGetStressor implements CacheWrapperStressor {
             log.info("Stopping one DeferredExecutor thread");
          }
 
-         public double getQueueLatency(){
+         public double getQueueLatency() {
             double retval = 0;
-            synchronized(this){
+            synchronized (this) {
                retval = queueLatency / queueOps;
                queueLatency = 0;
                queueOps = 0;
             }
             return retval;
          }
-         
-         public double getOpLatency(){
+
+         public double getOpLatency() {
             double retval = 0;
-            synchronized(this){
+            synchronized (this) {
                retval = opLatency / ops;
                opLatency = 0;
                ops = 0;
@@ -518,128 +582,130 @@ public class PutGetStressor implements CacheWrapperStressor {
             return retval;
          }
 
-    	  public void runOperation(){
-    		  int i = 0;
-    		  boolean executionSuccessful;
-    		  boolean commitSuccessful;
-    		  long startTx;
-    		  long startCommit = 0;
-    		  Object lastReadValue;
+         public boolean runOperation() {
+            int i = 0;
+            boolean executionSuccessful;
+            boolean commitSuccessful;
+            long startTx;
+            long startCommit = 0;
+            Object lastReadValue;
 
-    		  OperationIterator operationIterator = transactionWorkload.chooseTransaction(cacheWrapper, random);
+            Object key = keyGenerator.getRandomKey();
+            String bucket = keyGenerator.getBucket();
+            if (!cacheWrapper.isKeyLocal(key)) {
+               return false;
+            }
 
-    		  startTx = System.nanoTime();
+            startTx = System.nanoTime();
 
-    		  cacheWrapper.startTransaction();
-    		  log.trace("*** [" + getName() + "] new transaction: " + i + "***");
+            OperationIterator operationIterator = transactionWorkload
+                  .chooseTransaction(cacheWrapper, random);
+            cacheWrapper.startTransaction();
+            log.trace("*** [" + getName() + "] new transaction: " + i + "***");
 
-    		  try{
-    			  lastReadValue = executeTransaction(operationIterator);
-    			  executionSuccessful = true;
-    		  } catch (TransactionExecutionFailedException e) {
-    			  lastReadValue = e.getLastValueRead();
-    			  logException(e, "Execution");
-    			  executionSuccessful = false;
-    		  }
+            try {
+               lastReadValue = executeTransaction(operationIterator, bucket,
+                     key);
+               executionSuccessful = true;
+            } catch (TransactionExecutionFailedException e) {
+               lastReadValue = e.getLastValueRead();
+               logException(e, "Execution");
+               executionSuccessful = false;
+            }
 
-    		  try{
-    			  startCommit = System.nanoTime();
-    			  cacheWrapper.endTransaction(executionSuccessful);
-    			  commitSuccessful = true;
-    		  }
-    		  catch(Throwable e){
-    			  logException(e, "Commit");
-    			  commitSuccessful = false;
-    		  }
+            try {
+               startCommit = System.nanoTime();
+               cacheWrapper.endTransaction(executionSuccessful);
+               commitSuccessful = true;
+            } catch (Throwable e) {
+               logException(e, "Commit");
+               commitSuccessful = false;
+            }
 
-    		  long endCommit = System.nanoTime();
+            long endCommit = System.nanoTime();
 
-    		  log.trace("*** [" + getName() + "] end transaction: " + i++ + "***");
+            log.trace("*** [" + getName() + "] end transaction: " + i++ + "***");
 
-    		  boolean readOnlyTransaction = operationIterator.isReadOnly();
-    		  long commitDuration = endCommit - startCommit;
-    		  long execDuration = endCommit - startTx;
+            boolean readOnlyTransaction = operationIterator.isReadOnly();
+            long commitDuration = endCommit - startCommit;
+            long execDuration = endCommit - startTx;
 
-    		  //update stats
-    		  if(executionSuccessful) {
-    			  if (commitSuccessful) {
-    				  if (readOnlyTransaction) {
-    					  readOnlyTxCommitSuccessDuration += commitDuration;
-    					  readOnlyTxDuration += execDuration;
-    					  numberOfReadOnlyTx++;
-    				  } else {
-    					  writeTxCommitSuccessDuration += commitDuration;
-    					  writeTxDuration += execDuration;
-    					  numberOfWriteTx++;
-    				  }
-    			  } else {
-    				  if (readOnlyTransaction) {
-    					  readOnlyTxCommitFailDuration += commitDuration;
-    					  commitFailedReadOnlyTxDuration += execDuration;
-    					  numberOfCommitFailedReadOnlyTx++;
-    				  } else {
-    					  writeTxCommitFailDuration += commitDuration;
-    					  commitFailedWriteTxDuration += execDuration;
-    					  numberOfCommitFailedWriteTx++;
-    				  }
-    			  }
-    		  } else {
-    			  //it is a rollback                  
-    			  if (readOnlyTransaction) {
-    				  readOnlyTxTollbackDuration += commitDuration;
-    				  execFailedReadOnlyTxDuration += execDuration;
-    				  numberOfExecFailedReadOnlyTx++;
-    			  } else {
-    				  writeTxTollbackDuration += commitDuration;
-    				  execFailedWriteTxDuration += execDuration;
-    				  numberOfExecFailedWriteTx++;
-    			  }
-    		  }
+            // update stats
+            if (executionSuccessful) {
+               if (commitSuccessful) {
+                  if (readOnlyTransaction) {
+                     readOnlyTxCommitSuccessDuration += commitDuration;
+                     readOnlyTxDuration += execDuration;
+                     numberOfReadOnlyTx++;
+                  } else {
+                     writeTxCommitSuccessDuration += commitDuration;
+                     writeTxDuration += execDuration;
+                     numberOfWriteTx++;
+                  }
+               } else {
+                  if (readOnlyTransaction) {
+                     readOnlyTxCommitFailDuration += commitDuration;
+                     commitFailedReadOnlyTxDuration += execDuration;
+                     numberOfCommitFailedReadOnlyTx++;
+                  } else {
+                     writeTxCommitFailDuration += commitDuration;
+                     commitFailedWriteTxDuration += execDuration;
+                     numberOfCommitFailedWriteTx++;
+                  }
+               }
+            } else {
+               // it is a rollback
+               if (readOnlyTransaction) {
+                  readOnlyTxTollbackDuration += commitDuration;
+                  execFailedReadOnlyTxDuration += execDuration;
+                  numberOfExecFailedReadOnlyTx++;
+               } else {
+                  writeTxTollbackDuration += commitDuration;
+                  execFailedWriteTxDuration += execDuration;
+                  numberOfExecFailedWriteTx++;
+               }
+            }
 
-    		  delta = System.nanoTime() - startTime;
-    		  logProgress(i, lastReadValue);
-    	  }
+            delta = System.nanoTime() - startTime;
+            logProgress(i, lastReadValue);
+            return true;
+         }
 
-    	  private Object executeTransaction(OperationIterator operationIterator)
-    			  throws TransactionExecutionFailedException {
-    		  Object lastReadValue = null;
+         private Object executeTransaction(OperationIterator operationIterator,
+               String bucket, Object key)
+               throws TransactionExecutionFailedException {
+            Object lastReadValue = null;
 
-    		  while(operationIterator.hasNext()){
-    			  Object key = keyGenerator.getRandomKey();
+            if (operationIterator.isReadOnly()) {
+               try {
+                  lastReadValue = cacheWrapper.get(bucket, key);
+               } catch (Throwable e) {
+                  TransactionExecutionFailedException tefe = new TransactionExecutionFailedException(
+                        "Error while reading " + key, e);
+                  tefe.setLastValueRead(lastReadValue);
+                  throw tefe;
+               }
+            } else {
+               Object payload = keyGenerator.getRandomValue();
 
-    			  if (operationIterator.isNextOperationARead()) {
-    				  try {
-    					  lastReadValue = cacheWrapper.get(keyGenerator.getBucket(), key);
-    				  } catch (Throwable e) {
-    					  TransactionExecutionFailedException tefe = new TransactionExecutionFailedException(
-    							  "Error while reading " + key, e);
-    					  tefe.setLastValueRead(lastReadValue);
-    					  throw tefe;
-    				  }
-    			  } else {
-    				  Object payload = keyGenerator.getRandomValue();
-
-    				  try {
-    					  cacheWrapper.put(keyGenerator.getBucket(), key, payload);
-    				  } catch (Throwable e) {
-    					  TransactionExecutionFailedException tefe = new TransactionExecutionFailedException(
-    							  "Error while writing " + key, e);
-    					  tefe.setLastValueRead(lastReadValue);
-    					  throw tefe;
-    				  }
-
-    			  }
-    		  }
-    		  return lastReadValue;
-    	  }
+               try {
+                  cacheWrapper.put(bucket, key, payload);
+               } catch (Throwable e) {
+                  TransactionExecutionFailedException tefe = new TransactionExecutionFailedException(
+                        "Error while writing " + key, e);
+                  tefe.setLastValueRead(lastReadValue);
+                  throw tefe;
+               }
+            }
+            return lastReadValue;
+         }
       }
 
-
-      public double getQueueLatency(){
+      public double getQueueLatency() {
          return consumerThread.getQueueLatency();
       }
-      
-      public double getOpLatency(){
+
+      public double getOpLatency() {
          return consumerThread.getOpLatency();
       }
    }
@@ -651,7 +717,7 @@ public class PutGetStressor implements CacheWrapperStressor {
    private void finishBenchmark() {
       running.set(false);
    }
-   
+
    private void collectStatsToInfinispan() {
       cacheWrapper.setRgunQueueSize(queue.size());
       double queueLatency = 0;
@@ -674,55 +740,20 @@ public class PutGetStressor implements CacheWrapperStressor {
 
    @Override
    public String toString() {
-      return "PutGetStressor{" +
-            "keyGeneratorFactory=" + factory +
-            "transactionWorkload=" + transactionWorkload +
-            ", coordinatorParticipation=" + coordinatorParticipation +
-            ", simulationTime=" + simulationTime +
-            ", cacheWrapper=" + cacheWrapper.getInfo() +
-            "}";
+      return "PutGetStressor{" + "keyGeneratorFactory=" + factory
+            + "transactionWorkload=" + transactionWorkload
+            + ", coordinatorParticipation=" + coordinatorParticipation
+            + ", simulationTime=" + simulationTime + ", cacheWrapper="
+            + cacheWrapper.getInfo() + "}";
    }
 
    /*
-   * -----------------------------------------------------------------------------------
-   * SETTERS
-   * -----------------------------------------------------------------------------------
-   */
-
-   @ManagedOperation
-   public void setWriteTxWorkload(String writeTxWorkload) {
-      transactionWorkload.writeTx(writeTxWorkload);
-   }
-
-   @ManagedAttribute
-   public String getWriteTxWorkload() {
-      Map<Operation, Integer> bounds = transactionWorkload.getOperationBounds();
-      StringBuilder stringBuilder = new StringBuilder();
-      stringBuilder.append(bounds.get(Operation.WRITE_TX_LOWER_BOUND_READ))
-            .append(":")
-            .append(bounds.get(Operation.WRITE_TX_UPPER_BOUND_READ));
-      stringBuilder.append(";");
-      stringBuilder.append(bounds.get(Operation.WRITE_TX_LOWER_BOUND_WRITE))
-            .append(":")
-            .append(bounds.get(Operation.WRITE_TX_UPPER_BOUND_WRITE));
-      return stringBuilder.toString();
-   }
-
-   @ManagedOperation
-   public void setReadTxWorkload(String readTxWorkload) {
-      transactionWorkload.readTx(readTxWorkload);
-   }
-
-   @ManagedAttribute
-   public String getReadTxWorkload() {
-      Map<Operation, Integer> bounds = transactionWorkload.getOperationBounds();
-      StringBuilder stringBuilder = new StringBuilder();
-      stringBuilder.append(bounds.get(Operation.READ_TX_LOWER_BOUND))
-            .append(":")
-            .append(bounds.get(Operation.READ_TX_UPPER_BOUND));
-      return stringBuilder.toString();
-   }
-
+    * ----------------------------------------------------------------------------
+    * ------- SETTERS
+    * ------------------------------------------------------------
+    * -----------------------
+    */
+   
    public void setNodeIndex(int nodeIndex) {
       this.nodeIndex = nodeIndex;
    }
@@ -731,7 +762,7 @@ public class PutGetStressor implements CacheWrapperStressor {
       factory.setNumberOfNodes(numberOfNodes);
    }
 
-   //NOTE this time is in seconds!
+   // NOTE this time is in seconds!
    public void setSimulationTime(long simulationTime) {
       this.simulationTime = simulationTime;
    }
@@ -793,10 +824,10 @@ public class PutGetStressor implements CacheWrapperStressor {
    public int getWriteTxPercentage() {
       return transactionWorkload.getWriteTxPercentage();
    }
-   
+
    @ManagedOperation
    public void setOpsPerSecond(long opsPerSecond) {
-	   this.opsPerSecond = opsPerSecond;
+      this.opsPerSecond = opsPerSecond;
    }
 
    @ManagedAttribute
@@ -808,12 +839,12 @@ public class PutGetStressor implements CacheWrapperStressor {
    public void changeKeysWorkload() {
       factory.calculate();
    }
-   
+
    @ManagedOperation
    public void setLocalityProbability(int localityProbability) {
       factory.setLocalityProbability(localityProbability);
    }
-   
+
    @ManagedAttribute
    public int getLocalityProbability() {
       return factory.getLocalityProbability();

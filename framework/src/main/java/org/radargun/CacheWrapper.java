@@ -6,6 +6,7 @@ import org.radargun.reporting.DataPlacementStats;
 import org.radargun.utils.BucketsKeysTreeSet;
 
 import javax.transaction.RollbackException;
+
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -107,7 +108,7 @@ public interface CacheWrapper
     * @param key
     * @return
     */
-   boolean isKeyLocal(String bucket, String key);
+   boolean isKeyLocal(Object key);
 
    /**
     *

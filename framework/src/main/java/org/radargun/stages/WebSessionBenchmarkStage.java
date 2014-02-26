@@ -36,10 +36,6 @@ public class WebSessionBenchmarkStage extends AbstractDistStage {
    //indicates that the coordinator executes transactions or not
    private boolean coordinatorParticipation = true;
 
-   private String writeTxWorkload = "50;50";
-
-   private String readTxWorkload = "100";
-
    //The percentage of write transactions generated
    private int writeTransactionPercentage = 100;
 
@@ -98,8 +94,6 @@ public class WebSessionBenchmarkStage extends AbstractDistStage {
       stressor.setSimulationTime(perThreadSimulTime);
       stressor.setWriteTxPercentage(writeTransactionPercentage);
       stressor.setCoordinatorParticipation(coordinatorParticipation);
-      stressor.setWriteTxWorkload(writeTxWorkload);
-      stressor.setReadTxWorkload(readTxWorkload);
       stressor.setBucketPrefix(bucketPrefix);
       stressor.setSizeOfValue(sizeOfValue);
       stressor.setNoContention(noContention);
@@ -159,8 +153,6 @@ public class WebSessionBenchmarkStage extends AbstractDistStage {
             ", sizeOfValue=" + sizeOfValue +
             ", numOfThreads=" + numOfThreads +
             ", coordinatorParticipation=" + coordinatorParticipation +
-            ", writeTxWorkload='" + writeTxWorkload + '\'' +
-            ", readTxWorkload='" + readTxWorkload + '\'' +
             ", writeTransactionPercentage=" + writeTransactionPercentage +
             ", bucketPrefix='" + bucketPrefix + '\'' +
             ", perThreadSimulTime=" + perThreadSimulTime +
@@ -185,14 +177,6 @@ public class WebSessionBenchmarkStage extends AbstractDistStage {
 
    public void setSizeOfValue(int sizeOfValue) {
       this.sizeOfValue = sizeOfValue;
-   }
-
-   public void setWriteTxWorkload(String writeTxWorkload) {
-      this.writeTxWorkload = writeTxWorkload;
-   }
-
-   public void setReadTxWorkload(String readTxWorkload) {
-      this.readTxWorkload = readTxWorkload;
    }
 
    public void setNumOfThreads(int numOfThreads) {
