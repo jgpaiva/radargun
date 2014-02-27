@@ -56,6 +56,9 @@ public class WebSessionBenchmarkStage extends AbstractDistStage {
    //for gaussian keys
    private double stdDev = -1;
 
+   //for zipf keys
+   private double zipfAlfa = -1;
+
    private CacheWrapper cacheWrapper;
    private boolean reportNanos = false;
 
@@ -103,6 +106,7 @@ public class WebSessionBenchmarkStage extends AbstractDistStage {
       stressor.setLocalityProbability(localityProbability);
       stressor.setStdDev(stdDev);
       stressor.setOpsPerSecond(opsPerSecond);
+      stressor.setZipfAlfa(zipfAlfa);
 
       try {
          Map<String, String> results = stressor.stress(cacheWrapper);
@@ -159,6 +163,7 @@ public class WebSessionBenchmarkStage extends AbstractDistStage {
             ", noContention=" + noContention +
             ", localityProbability=" + localityProbability +
             ", stdDev=" + stdDev +
+            ", zipfAlfa=" + zipfAlfa +
             ", opsPerSecond=" + opsPerSecond +
             ", " + super.toString();
    }
@@ -207,5 +212,7 @@ public class WebSessionBenchmarkStage extends AbstractDistStage {
       this.stdDev = stdDev;
    }
 
-
+   public void setZipfAlfa(double zipfAlfa) {
+      this.zipfAlfa = zipfAlfa;
+   }
 }

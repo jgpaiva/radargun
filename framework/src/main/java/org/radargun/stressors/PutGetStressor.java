@@ -854,4 +854,9 @@ public class PutGetStressor implements CacheWrapperStressor {
    public void setStdDev(double stdDev) {
       factory.setStdDev(stdDev);
    }
+   
+   @ManagedOperation
+   public void setZipfAlfa(double alfa){
+      factory.setZipfAlfa(alfa);
+   }
 }

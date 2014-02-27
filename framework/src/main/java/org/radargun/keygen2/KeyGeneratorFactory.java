@@ -28,7 +28,7 @@ public class KeyGeneratorFactory {
    private int valueSize;
    private int localityProbability;
    private double stdDev;
-   private double zipfAlfa;
+   private double zipfAlfa = -1;
    private boolean noContention;
    private String bucketPrefix;
 
@@ -62,7 +62,9 @@ public class KeyGeneratorFactory {
          if ((localityProbability >= 0 && stdDev > 0)
                || (zipfAlfa != -1 && (localityProbability >= 0 || stdDev > 0))) {
             throw new IllegalArgumentException(
-                  "Std Dev and Locality Probability cannot be both higher or equals than 0");
+                  "Invalid configuration of Std Dev, Locality Probability or zipfAlfa:"
+                        + "zipfAlfa:" + zipfAlfa + "stdDev:" + stdDev
+                        + "localityProbability:" + localityProbability);
          }
 
          currentWorkload.set(new Workload(numberOfKeys, numberOfNodes,
