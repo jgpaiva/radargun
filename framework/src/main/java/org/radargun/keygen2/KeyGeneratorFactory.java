@@ -7,6 +7,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.commons.math3.distribution.ZipfDistribution;
 
 /**
@@ -17,6 +19,7 @@ import org.apache.commons.math3.distribution.ZipfDistribution;
  * @since 1.1
  */
 public class KeyGeneratorFactory {
+   private static Log log = LogFactory.getLog(KeyGeneratorFactory.class);
 
    public static final String SEPARATOR = "_";
 
@@ -70,6 +73,7 @@ public class KeyGeneratorFactory {
          currentWorkload.set(new Workload(numberOfKeys, numberOfNodes,
                numberOfThreads, numberOfKeysPerThread, nodeIdx, threadIdx,
                localityProbability, noContention, stdDev, zipfAlfa));
+         log.info(currentWorkload.get());
       }
    }
 
@@ -494,6 +498,22 @@ public class KeyGeneratorFactory {
             this.zipfDist = null;
             this.zipfShuffle = null;
          }
+      }
+      
+      public String toString(){
+         return ""+
+      "numberOfKeys: " + numberOfKeys +
+      "numberOfNodes: " + numberOfNodes +
+      "numberOfThreads: " + numberOfThreads +
+      "keyPerThread: " + keyPerThread +
+      "nodeIdx: " + nodeIdx +
+      "threadIdx: " + threadIdx +
+      "localityProbability: " + localityProbability +
+      "noContention: " + noContention+
+      "stdDev: " + stdDev +
+      "zipfAlfa: " + zipfAlfa +
+      "zipfDist: " + zipfDist
+      ;
       }
    }
    
