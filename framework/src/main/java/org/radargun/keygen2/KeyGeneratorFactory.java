@@ -73,7 +73,7 @@ public class KeyGeneratorFactory {
          currentWorkload.set(new Workload(numberOfKeys, numberOfNodes,
                numberOfThreads, numberOfKeysPerThread, nodeIdx, threadIdx,
                localityProbability, noContention, stdDev, zipfAlfa));
-         log.info(currentWorkload.get());
+         log.info("done calculating workload: " + currentWorkload.get());
       }
    }
 
@@ -501,18 +501,18 @@ public class KeyGeneratorFactory {
       }
       
       public String toString(){
-         return ""+
-      "numberOfKeys: " + numberOfKeys +
-      "numberOfNodes: " + numberOfNodes +
-      "numberOfThreads: " + numberOfThreads +
-      "keyPerThread: " + keyPerThread +
-      "nodeIdx: " + nodeIdx +
-      "threadIdx: " + threadIdx +
-      "localityProbability: " + localityProbability +
-      "noContention: " + noContention+
-      "stdDev: " + stdDev +
-      "zipfAlfa: " + zipfAlfa +
-      "zipfDist: " + zipfDist
+         return "Workload{"+
+      "numberOfKeys=" + numberOfKeys +
+      " numberOfNodes=" + numberOfNodes +
+      " numberOfThreads=" + numberOfThreads +
+      " keyPerThread=" + keyPerThread +
+      " nodeIdx=" + nodeIdx +
+      " threadIdx=" + threadIdx +
+      " localityProbability=" + localityProbability +
+      " noContention=" + noContention +
+      " stdDev=" + stdDev +
+      " zipfAlfa=" + zipfAlfa +
+      "}"
       ;
       }
    }
